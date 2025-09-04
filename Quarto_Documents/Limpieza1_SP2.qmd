@@ -1,0 +1,110 @@
+---
+title: "Limpieza de Datos - ENSANUT"
+author: "Diego Vértiz, Daniel Sánchez, José Ángel Govea, Augusto Ley"
+format:
+  html: 
+    toc: true
+    html-math-method: katex
+    ebed-resources: true
+    self-contained-math: true
+    df-print: kable
+editor: source
+---
+
+# Primera limpieza de los datos
+
+### Conocimiento de datos
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(scales)
+library(readr)
+
+data <- read_delim(
+  "data_ensanut/ensanut2022_muestras.csv",
+  delim = ";",
+  locale = locale(encoding = "UTF-8"),
+  guess_max = 100000,
+  show_col_types = FALSE
+)
+
+head(data)
+```
+
+```{r}
+data2 <- read_delim(
+  "data_ensanut/ensanut2022_socdem.csv",
+  #delim = ";",
+  locale = locale(encoding = "UTF-8"),
+  guess_max = 100000,
+  show_col_types = FALSE
+)
+
+head(data2)
+```
+
+```{r}
+data_aire <- read_delim(
+  "data_ensanut/calidad_aire_2025.csv",
+  #delim = ";",
+  locale = locale(encoding = "UTF-8"),
+  guess_max = 100000,
+  show_col_types = FALSE
+)
+
+head(data_aire)
+```
+
+```{r}
+vars <- list(
+  data      = names(data),
+  data2     = names(data2),
+  data_aire = names(data_aire)
+)
+vars
+```
+
+```{r}
+vars_df <- stack(vars)                       # values, ind
+names(vars_df) <- c("variable", "dataset")   # renombrar
+vars_df <- vars_df[, c("dataset", "variable")]
+
+write.csv(vars_df, "vars_largo.csv", row.names = FALSE)
+vars_df
+```
+
+```{r}
+library(dplyr)
+
+datos <- left_join(data, data2, by = "FOLIO_INT")
+
+datos
+```
+
+```{r}
+names(datos)
+
+```
+
+```{r}
+library(dplyr)
+
+bases <- intersect(
+  sub("\\.x$", "", grep("\\.x$", names(datos), value = TRUE)),
+  sub("\\.y$", "", grep("\\.y$", names(datos), value = TRUE))
+)
+
+
+for (b in bases) {
+  x <- paste0(b, ".x"); y <- paste0(b, ".y")
+  if (all(c(x, y) %in% names(datos))) {
+    datos[[b]] <- dplyr::coalesce(datos[[x]], datos[[y]])
+  }
+}
+
+datos <- datos %>% select(-ends_with(".x"), -ends_with(".y"))
+names(datos)
+```
+
+
