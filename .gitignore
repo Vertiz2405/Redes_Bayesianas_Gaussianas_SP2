@@ -7,5 +7,4 @@
 *_files/
 *.html
 _site/
-.quarto/
 ~$*

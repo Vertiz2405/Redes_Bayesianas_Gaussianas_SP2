@@ -22,7 +22,7 @@ library(scales)
 library(readr)
 
 data <- read_delim(
-  "data_ensanut/ensanut2022_muestras.csv",
+  "../data_ensanut/ensanut2022_muestras.csv",
   delim = ";",
   locale = locale(encoding = "UTF-8"),
   guess_max = 100000,
@@ -34,7 +34,7 @@ head(data)
 
 ```{r}
 data2 <- read_delim(
-  "data_ensanut/ensanut2022_socdem.csv",
+  "../data_ensanut/ensanut2022_socdem.csv",
   #delim = ";",
   locale = locale(encoding = "UTF-8"),
   guess_max = 100000,
@@ -46,7 +46,7 @@ head(data2)
 
 ```{r}
 data_aire <- read_delim(
-  "data_ensanut/calidad_aire_2025.csv",
+  "../data_ensanut/calidad_aire_2025.csv",
   #delim = ";",
   locale = locale(encoding = "UTF-8"),
   guess_max = 100000,
@@ -69,8 +69,6 @@ vars
 vars_df <- stack(vars)                       # values, ind
 names(vars_df) <- c("variable", "dataset")   # renombrar
 vars_df <- vars_df[, c("dataset", "variable")]
-
-write.csv(vars_df, "vars_largo.csv", row.names = FALSE)
 vars_df
 ```
 
@@ -105,6 +103,7 @@ for (b in bases) {
 
 datos <- datos %>% select(-ends_with(".x"), -ends_with(".y"))
 names(datos)
+write.csv(datos, "datos.csv", row.names = FALSE)
 ```
 
 
