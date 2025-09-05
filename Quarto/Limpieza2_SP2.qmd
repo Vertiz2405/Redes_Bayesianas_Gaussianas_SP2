@@ -1,0 +1,165 @@
+---
+title: "Limpieza de Datos - AIRE"
+author: "Diego Vértiz, Daniel Sánchez, José Ángel Govea, Augusto Ley"
+format:
+  html: 
+    toc: true
+    html-math-method: katex
+    ebed-resources: true
+    self-contained-math: true
+    df-print: kable
+editor: source
+---
+
+```{r}
+library(readr)
+library(dplyr)
+```
+
+```{r}
+data_aire <- read.csv("../data_ensanut/calidad_aire_2025.csv")
+data_aire
+```
+
+```{r}
+datos <- read.csv("../data_ensanut/datos.csv")
+head(datos)
+```
+
+## Limpieza Data_Aire
+
+```{r}
+data_aire <- data_aire[data_aire$Tipo_de_Fuente == "Fuentes fijas", ]
+data_aire$Entidad <- NULL
+data_aire
+```
+```{r}
+unique(data_aire$Entidad_federativa)
+```
+
+```{r}
+unique(data_aire[data_aire$Entidad_federativa == "Aguascalientes", "Municipio"])
+```
+
+```{r}
+unique(datos[datos$desc_ent == "01 AGUASCALIENTES", "desc_mun1"])
+```
+
+#### Entidades y Municipios en data_aire a mayuscula
+
+```{r}
+data_aire$Entidad_federativa <- toupper(data_aire$Entidad_federativa)
+```
+
+```{r}
+head(unique(data_aire$Entidad_federativa))
+```
+
+```{r}
+data_aire$Municipio <- toupper(data_aire$Municipio)
+```
+
+```{r}
+head(unique(data_aire$Municipio))
+```
+
+#### Quitar los numeros y el primer espacio del estado y municipio de la base "datos"
+
+```{r}
+datos$desc_ent <- substring(datos$desc_ent, 4)
+```
+
+```{r}
+unique(datos$desc_ent)
+```
+
+```{r}
+datos$desc_mun <- substring(datos$desc_mun, 5)
+```
+
+```{r}
+head(unique(datos$desc_mun))
+```
+
+#### Encontrar que entidades y municipios no coinciden en los 2 dataframes
+
+```{r}
+anti_join(
+  distinct(datos, desc_ent),
+  distinct(data_aire, Entidad_federativa),
+  by = c("desc_ent" = "Entidad_federativa")
+)
+```
+```{r}
+anti_join(
+  distinct(data_aire, Entidad_federativa),
+  distinct(datos, desc_ent),
+  by = c("Entidad_federativa" = "desc_ent")
+)
+```
+
+```{r}
+datos <- datos %>%
+  mutate(
+    desc_ent = recode(
+      desc_ent,
+      "COAHUILA DE ZARAGOZA"       = "COAHUILA",
+      "MICHOACÁN DE OCAMPO"        = "MICHOACÁN",
+      "VERACRUZ DE IGNACIO DE LA LLAVE" = "VERACRUZ"
+    )
+  )
+```
+
+```{r}
+anti_join(
+  distinct(datos, desc_ent),
+  distinct(data_aire, Entidad_federativa),
+  by = c("desc_ent" = "Entidad_federativa")
+)
+```
+
+```{r}
+anti_join(
+  distinct(datos, desc_ent, desc_mun),
+  distinct(data_aire, Entidad_federativa, Municipio),
+  by = c("desc_ent" = "Entidad_federativa",
+         "desc_mun" = "Municipio")
+)
+```
+
+```{r}
+anti_join(
+  distinct(data_aire, Entidad_federativa, Municipio),
+  distinct(datos, desc_ent, desc_mun),
+  by = c("Entidad_federativa" = "desc_ent",
+         "Municipio" = "desc_mun")
+)
+```
+
+#### Incluir los indicadores de calidad de aire con el resto de datos, segun su entidad y municipio
+
+```{r}
+head(data_aire)
+```
+
+```{r}
+datos
+```
+
+```{r}
+resultado <- inner_join(datos, data_aire, by = c("desc_ent" = "Entidad_federativa", "desc_mun" = "Municipio"))
+```
+
+```{r}
+resultado
+```
+
+```{r}
+write_csv(resultado, "../data_ensanut/data.csv")
+```
+
+
+
+
+
+
