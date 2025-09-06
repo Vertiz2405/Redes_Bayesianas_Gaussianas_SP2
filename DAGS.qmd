@@ -1,0 +1,169 @@
+---
+title: "DAGS"
+author: 
+  - name: "Jose Angel Govea Garcia"
+  - name: "Diego Vértiz Padilla"
+  - name: "Daniel Sánchez Fortiz"
+  - name: "Augusto Ley Rodriguez"
+format:
+  html:
+    toc: true
+    html-math-method: katex
+    embed-resources: true
+    self-contained-math: true
+    df-print: kable
+editor: source 
+---
+Instalamos la librerias que vamos a utilizar
+```{r}
+install.packages("tidyverse")
+
+```
+Cargamos las librerias que utilizaremos.
+```{r}
+library(tidyverse)
+library(bnlearn)
+```
+```{r}
+library(dplyr)
+```
+
+Aqui vamos a cargar los datos que utilizaremos (que son los limpios)
+
+```{r}
+data = read_csv("data_ensanut/datos.csv")
+head(data)
+```
+Ya teniendo la opinion de los expertos nomas utilizaremos las variables que nos dieron. 
+
+Es por eso que vamos a seleccionar las que necesitaremos. 
+
+Pero primero vamos a ver los nombres de las variables que tenemos
+
+```{r}
+colnames(data)
+
+
+```
+Ahora si ya tengo mis 17 variables que usare. Creamos una lista de las variables a utilizar para crear el data de esas variables
+```{r}
+vars_usar <- c("desc_ent", "desc_mun", "estrato", "h0302", "h1205", "NOx",
+               "COV", "SO_2", "nota03", "valor_COLEST", "valor_TRIG",
+               "valor_FERRITINA", "valor_FOL", "valor_HCST","valor_CREAT", "valor_AC_URICO", "valor_HB1AC")
+```
+
+creamos un dataframe con solo las variables a usar
+```{r}
+datos_buenos <- data[, vars_usar]
+```
+
+vemos que si se
+
+```{r}
+head(datos_buenos)
+```
+
+Ahora como hay algunas observaciones que tienen NA vamos a dropearlas por que el modelo no me permite tener NA
+
+```{r}
+
+datos_ <- na.omit(datos_buenos)
+head(datos_)
+
+```
+
+Vamos a contar cuantas columnas tienen NA
+
+```{r}
+colSums(is.na(datos_))
+
+
+
+```
+Perfecto ya no hay ningun na, ahora lo que haremos es cambiar el nombre de las variables (columnas) para que sean mas facil
+E = Entidad
+M = Municipio
+ES = Estrato
+S =  Sexo
+C19 = Covid 19
+NO = Nivel NOx
+CO = Nivel de COv
+SO = Nivel de S0_2
+MN = Micornutrimentos
+C = Colesterol Total
+T = Trigliceridos
+F = valor de Ferritina
+FO = Valor de Fol
+H = Valor de HCST
+CT = Valor de Creatinina
+AC = Valor de Ácido Úrico
+HB = Valor de Hemoglobina Glucosilda
+```{r}
+colnames(datos_) = c("E", "M", "ES", "S", "C19", "NO","CO", "SO", "MN", "C", "T", "F", "FO", "H", "CT", "AC", "HB")
+
+```
+
+Vamos a checar que si se hayan cambiando los nombre de las variables
+
+```{r}
+head(datos_)
+```
+
+Ahora checaremos que informacion contiene la variable de Covid (C19).
+
+```{r}
+unique(datos_$C19)
+```
+
+Ahora como la varible C19 se significa cuantas veces ha tenido covid desde el 2020. Esta variable nos arroja 1, 2,3 ,4, 98 y 99. Estos se significa 1 = ha tenido una vez covid desde el 2020, 2 = ha tenido 2 veces covid desde el 2020, 3 = ha tenido 3 veces covid desde el 2020, 4 = ha tenido covid 4 veces desde el 2020, 98 = no ha tenido covid desde el 2020, 99 = no recuerda / no contesto.
+Entonces lo que haremos es estandarizar esta variable, si la variable es 1,2,3,4 = 1 (si ha tenido covid) y si la variable es 98 ,99 = 0 (no ha tenido covid). Esto para facilitar la dag.
+
+```{r}
+datos_ <- datos_ %>%
+  mutate(C19 = case_when(
+    C19 %in% c(1,2,3,4) ~ 1,   
+    C19 %in% c(98,99)   ~ 0, ))
+
+```
+
+```{r}
+head(datos_)
+```
+
+Checamos los valores de la variables C19
+
+```{r}
+unique(datos_$C19)
+```
+Ahora lo que haremos es como CT (Valor de creatinina) son caracteres lo haremos a numericas. 
+
+```{r}
+datos_ <- datos_ %>%
+  mutate(CT = as.numeric(str_replace(CT, ",", "\\.")))
+```
+
+Checamos que si se haya remplazado:
+
+```{r}
+head(datos_)
+```
+
+
+Luego vamos a dropear la columnas de E (Entidad), M (Municipio), S (Sexo), ES(Estrato) C19 (Covid) y el MN (Micronutrimentos). Esto por que no son Continuas. Luego las utilizaremos en otras DAGS 
+```{r}
+
+data = datos_ |>
+        select(-E,-M, -C19, -MN, -ES, -S)
+
+```
+
+```{r}
+head(data)
+```
+
+y nos quedaremos con las siguiente por mientras
+
+```{r}
+colnames(data)
+```
+
