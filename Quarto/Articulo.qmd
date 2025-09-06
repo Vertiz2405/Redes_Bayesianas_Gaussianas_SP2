@@ -1,0 +1,160 @@
+---
+title: "Articulo"
+author: 
+  - name: "Jose Angel Govea Garcia"
+  - name: "Diego Vértiz Padilla"
+  - name: "Daniel Sánchez Fortiz"
+  - name: "Augusto Ley Rodriguez"
+format:
+  html:
+    toc: true
+    html-math-method: katex
+    embed-resources: true
+    self-contained-math: true
+    df-print: kable
+editor: source
+---
+
+```{r}
+#| echo: false
+#| output: false
+library(readr)
+library(dplyr)
+```
+
+# Abstract
+
+# Introducción
+
+# Metodología
+
+## Limpieza de Datos
+
+### Limpieza 1
+
+### Limpieza 2
+
+El objetivo de la segunda limpieza es incluir los datos de calidad de aire, recolectados por SEMARNAT en el 2025, con la información previamente del ENSANUT acerca de estudios de sangre de personas y sus respectivos datos demograficos. Asumiremos que esta informacion son buenas estimaciones para los contaminantes del 2022. 
+
+Los datos con los que contamos en calidad de aire son los siguientes (las 5 observaciones son ejemplo):
+```{r}
+#| echo: false
+data_aire <- read.csv("../data_ensanut/calidad_aire_2025.csv")
+head(data_aire)
+```
+
+```{r}
+#| echo: false
+#| output: false
+datos2 <- read.csv("../data_ensanut/datos.csv")
+```
+
+Lo primero que hicimos fue determinar un tipo de fuente de datos, debido a la magnitud de estos nos quedamos solo con los datos provenientes de fuentes fijas. Tambien quitamos la columan llamada "Entidad", ya que incluye la misma informacion que la columna llamada "Entidad_federativa". La tabla actualizada la vemos de la siguiente manera:
+```{r}
+#| echo: false
+data_aire <- data_aire[data_aire$Tipo_de_Fuente == "Fuentes fijas", ]
+data_aire$Entidad <- NULL
+head(data_aire)
+```
+
+```{r}
+#| echo: false
+#| output: false
+data_aire <- data_aire[data_aire$Tipo_de_Fuente == "Fuentes fijas", ]
+data_aire$Entidad <- NULL
+data_aire
+```
+
+```{r}
+#| echo: false
+#| output: false
+data_aire$Entidad_federativa <- toupper(data_aire$Entidad_federativa)
+```
+
+```{r}
+#| echo: false
+#| output: false
+datos2$desc_ent <- substring(datos2$desc_ent, 4)
+```
+
+```{r}
+#| echo: false
+#| output: false
+datos2$desc_mun <- substring(datos2$desc_mun, 5)
+```
+
+El siguiente paso fue verificar el nombre de entidad y municipuo de los 2 data frames, esto con el objetivo de ver como relacionar ambas tablas y poder unificar la informacion. En el caso de la tabla aire algunos ejemplos de entidades federativas y municipios son los siguientes:
+
+ - Aguascalientes
+ - Baja California
+ - Asientos
+ - Pabellón de Arteaga
+ 
+ Mientras que esta misma información, en la tabla referente a la informacion del ensanut la visualizamos de la siguiente manera:
+ 
+- 01 AGUASCALIENTES
+- 02 BAJA CALIFORNIA
+- 002 ASIENTOS
+- 006 PABELLÓN DE ARTEAGA
+
+Con esta informacion decidimos que al primer grupo de datos (semarnat), tanto a las entidades y municipios las hariamos todas mayuscula. Mientras que en el segundo grupo de datos (ensanut), eliminariamos los numeros y el primer espacio. Con estos cambios ambas tablas tendrian el mismo formato para sus entidades y muncipios.
+
+Una vez realizado estos cambios realizamos un antijoin entre ambas tablas, esto con la intencion de conocer que elementos seguian sin coincidir. En el caso de las entidades no coincidian 3, para los datos acerca del aire son los siguientes:
+
+- COAHUILA				
+- MICHOACÁN				
+- VERACRUZ
+
+Mientras que en el conjunto de datos del ensanut aparecian de la siguiente manera:
+
+- COAHUILA DE ZARAGOZA				
+- MICHOACÁN DE OCAMPO				
+- VERACRUZ DE IGNACIO DE LA LLAVE	
+
+```{r}
+#| echo: false
+#| output: false
+datos2 <- datos2 %>%
+  mutate(
+    desc_ent = recode(
+      desc_ent,
+      "COAHUILA DE ZARAGOZA"       = "COAHUILA",
+      "MICHOACÁN DE OCAMPO"        = "MICHOACÁN",
+      "VERACRUZ DE IGNACIO DE LA LLAVE" = "VERACRUZ"
+    )
+  )
+```
+
+Como se puede leer, estos son exactamente los mismos estados pero pequelas variaciones en los nombres. Debido a esto, modificamos el segundo conjutno de datos para que coincidiera con el primero
+
+En el caso del los municipios, cuando realizamos un autojoin para conocer aquellas que no coincidian. Nos percatamos que no era por variaciones en los nombes, si no porque informacion de un municipio en cierta tabla, no se encontraba presente en la otra, esto sucedia en ambas direcciones. En este caso no realizamos ninguna modificacion. 
+
+Una vez realizados estos cambias ya podiamos realizar un inner join, para poder contar en una misma con todos los datos. Esta union la podemos visualizar en la siguiente tabla: 
+```{r}
+#| echo: false
+#| output: false
+resultado <- inner_join(datos2, data_aire, by = c("desc_ent" = "Entidad_federativa", "desc_mun" = "Municipio"))
+```
+
+```{r}
+#| echo: false
+head(resultado)
+```
+- 
+# Metodología
+
+## Expertos quimicos
+
+## DAGs
+
+## Evaluación de las DAGs
+
+## Variables categoricas 
+
+# Aplicación
+
+# Conclusiones
+
+# Referencias
+
+
