@@ -1,0 +1,28 @@
+---
+title: "Redes_Bayesianas_Gaussianas_P1"
+format: html
+editor: source
+---
+
+
+
+```{r}
+library(readr)
+```
+
+
+```{r}
+data <- read_delim(
+  "data_ensanut/ensanut2022_muestras.csv",
+  delim = ";",
+  locale = locale(encoding = "UTF-8"),
+  guess_max = 100000,
+  show_col_types = FALSE
+)
+```
+
+
+```{r}
+head(data)
+```
+

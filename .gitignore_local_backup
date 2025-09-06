@@ -1,0 +1,17 @@
+<<<<<<< HEAD
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+=======
+.DS_Store
+.Rproj.user/
+*.Rproj
+.Rhistory
+.RData
+.Ruserdata
+*_files/
+*.html
+_site/
+~$*
+>>>>>>> 79cc15834663f594481154f3b473ed7883294452
