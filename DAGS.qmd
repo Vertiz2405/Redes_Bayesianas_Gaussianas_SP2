@@ -167,3 +167,36 @@ y nos quedaremos con las siguiente por mientras
 colnames(data)
 ```
 
+# Creacion de DAGS
+
+```{r}
+dag1 <- model2network("[NO][CO][SO][CT|NO:CO:SO][AC|NO:CO:SO:CT][HB|NO:SO][F|NO:CO:SO:HB][P|HB:AC][T|HB:AC:F][C|HB:AC:F][FO][H|NO:CO:SO:FO]")
+
+```
+
+```{r}
+graphviz.plot(dag1, shape = "ellipse")
+```
+
+
+```{r}
+dag2 <- model2network("[NO][CO][SO][HB|NO:CO:SO][AC|NO:CO:SO][H|NO:CO:SO:FO][FO][F|CT][CT|NO:SO][T|HB:AC][C|HB:AC]")
+
+
+```
+
+
+```{r}
+graphviz.plot(dag2, shape = "ellipse")
+
+```
+
+```{r}
+dag3 <- model2network("[NO][CO][SO][H|NO:CO:SO:FO][FO][F|SO][CT|NO:CO:SO][AC|H:CT][HB|NO:SO][T|HB:AC][C|HB:AC]")
+```
+
+```{r}
+graphviz.plot(dag3, shape = "ellipse")
+```
+
+
