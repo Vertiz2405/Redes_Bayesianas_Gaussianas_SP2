@@ -16,7 +16,7 @@ editor: source
 ---
 Instalamos la librerias que vamos a utilizar
 ```{r}
-install.packages("tidyverse")
+#install.packages("tidyverse")
 
 ```
 Cargamos las librerias que utilizaremos.
@@ -34,7 +34,7 @@ Aqui vamos a cargar los datos que utilizaremos (que son los limpios)
 data = read_csv("data_ensanut/datos.csv")
 head(data)
 ```
-Ya teniendo la opinion de los expertos nomas utilizaremos las variables que nos dieron. 
+Ya teniendo la opinión de los expertos solo utilizaremos las variables que nos dieron. 
 
 Es por eso que vamos a seleccionar las que necesitaremos. 
 
@@ -42,10 +42,8 @@ Pero primero vamos a ver los nombres de las variables que tenemos
 
 ```{r}
 colnames(data)
-
-
 ```
-Ahora si ya tengo mis 17 variables que usare. Creamos una lista de las variables a utilizar para crear el data de esas variables
+Ahora si ya tengo mis 17 variables que usaré. Creamos una lista de las variables a utilizar para crear el data de esas variables.
 ```{r}
 vars_usar <- c("desc_ent", "desc_mun", "estrato", "h0302", "h1205", "NOx",
                "COV", "SO_2", "nota03", "valor_COLEST", "valor_TRIG",
@@ -57,7 +55,7 @@ creamos un dataframe con solo las variables a usar
 datos_buenos <- data[, vars_usar]
 ```
 
-vemos que si se
+Vemos que se creó correctamente.
 
 ```{r}
 head(datos_buenos)
@@ -76,11 +74,8 @@ Vamos a contar cuantas columnas tienen NA
 
 ```{r}
 colSums(is.na(datos_))
-
-
-
 ```
-Perfecto ya no hay ningun na, ahora lo que haremos es cambiar el nombre de las variables (columnas) para que sean mas facil
+Perfecto ya no hay ningun na, ahora lo que haremos es cambiar el nombre de las variables (columnas) para que sean mas fáciles de manejar.
 E = Entidad
 M = Municipio
 ES = Estrato
@@ -100,22 +95,21 @@ AC = Valor de Ácido Úrico
 HB = Valor de Hemoglobina Glucosilda
 ```{r}
 colnames(datos_) = c("E", "M", "ES", "S", "C19", "NO","CO", "SO", "MN", "C", "T", "F", "FO", "H", "CT", "AC", "HB")
-
 ```
 
-Vamos a checar que si se hayan cambiando los nombre de las variables
+Revisamos que si se hayan cambiando los nombre de las variables.
 
 ```{r}
 head(datos_)
 ```
 
-Ahora checaremos que informacion contiene la variable de Covid (C19).
+Ahora revisamos que informacion contiene la variable de Covid (C19).
 
 ```{r}
 unique(datos_$C19)
 ```
 
-Ahora como la varible C19 se significa cuantas veces ha tenido covid desde el 2020. Esta variable nos arroja 1, 2,3 ,4, 98 y 99. Estos se significa 1 = ha tenido una vez covid desde el 2020, 2 = ha tenido 2 veces covid desde el 2020, 3 = ha tenido 3 veces covid desde el 2020, 4 = ha tenido covid 4 veces desde el 2020, 98 = no ha tenido covid desde el 2020, 99 = no recuerda / no contesto.
+Ahora como la varible C19 se significa cuantas veces ha tenido covid desde el 2020. Esta variable nos arroja 1, 2,3 ,4, 98 y 99. Estos se significa 1 = ha tenido una vez covid desde el 2020, 2 = ha tenido 2 veces covid desde el 2020, 3 = ha tenido 3 veces covid desde el 2020, 4 = ha tenido covid 4 veces desde el 2020, 98 = no ha tenido covid desde el 2020, 99 = no recuerda / no contestó.
 Entonces lo que haremos es estandarizar esta variable, si la variable es 1,2,3,4 = 1 (si ha tenido covid) y si la variable es 98 ,99 = 0 (no ha tenido covid). Esto para facilitar la dag.
 
 ```{r}
@@ -135,7 +129,7 @@ Checamos los valores de la variables C19
 ```{r}
 unique(datos_$C19)
 ```
-Ahora lo que haremos es como CT (Valor de creatinina) son caracteres lo haremos a numericas. 
+Ahora lo que haremos es como CT (Valor de creatinina) son caracteres. por lo tanto, lo convertimos a numericas. 
 
 ```{r}
 datos_ <- datos_ %>%
@@ -161,16 +155,16 @@ data = datos_ |>
 head(data)
 ```
 
-y nos quedaremos con las siguiente por mientras
+Nos quedaremos con las siguientes, temporalmente.
 
 ```{r}
 colnames(data)
 ```
 
-# Creacion de DAGS
+# Creación de DAGS
 
 ```{r}
-dag1 <- model2network("[NO][CO][SO][CT|NO:CO:SO][AC|NO:CO:SO:CT][HB|NO:SO][F|NO:CO:SO:HB][P|HB:AC][T|HB:AC:F][C|HB:AC:F][FO][H|NO:CO:SO:FO]")
+dag1 <- model2network("[NO][CO][SO][CT|NO:CO:SO][AC|NO:CO:SO:CT][HB|NO:SO][F|NO:CO:SO:HB][T|HB:AC:F][C|HB:AC:F][FO][H|NO:CO:SO:FO]")
 
 ```
 
@@ -198,5 +192,29 @@ dag3 <- model2network("[NO][CO][SO][H|NO:CO:SO:FO][FO][F|SO][CT|NO:CO:SO][AC|H:C
 ```{r}
 graphviz.plot(dag3, shape = "ellipse")
 ```
+Comparamos las DAGs dados sus scores:
 
+```{r}
+score(dag1, data = data, type = "bic-g")
+```
+```{r}
+score(dag2, data = data, type = "bic-g")
+```
+
+```{r}
+score(dag3, data = data, type = "bic-g")
+```
+
+```{r}
+best_dag = hc(data)
+str(data)   
+```
+
+```{r}
+modelstring(best_dag)
+```
+
+```{r}
+graphviz.plot(best_dag, shape = "ellipse")
+```
 
