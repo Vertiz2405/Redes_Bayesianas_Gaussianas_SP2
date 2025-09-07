@@ -1,0 +1,300 @@
+---
+title: "DAGS"
+author: 
+  - name: "Jose Angel Govea Garcia"
+  - name: "Diego Vértiz Padilla"
+  - name: "Daniel Sánchez Fortiz"
+  - name: "Augusto Ley Rodriguez"
+format:
+  html:
+    toc: true
+    html-math-method: katex
+    embed-resources: true
+    self-contained-math: true
+    df-print: kable
+editor: source
+---
+
+## 1. Librerías
+
+```{r}
+library(tidyverse)
+library(readr)
+library(bnlearn)
+library(purrr)
+library(dplyr)
+library(mgcv)
+```
+
+## 2. Carga de datos
+```{r}
+data <- read_csv("../data_ensanut/datos2.csv", show_col_types = FALSE)
+head(data)
+```
+
+## 3. Selección y preparación de variables
+
+```{r}
+vars_usar <- c(
+  "desc_ent", "desc_mun", "estrato", "h0302", "h1205", "NOx",
+  "COV", "SO_2", "nota03", "valor_COLEST", "valor_TRIG",
+  "valor_FERRITINA", "valor_FOL", "valor_HCST","valor_CREAT",
+  "valor_AC_URICO", "valor_HB1AC"
+)
+
+datos_buenos <- data[, vars_usar]
+head(datos_buenos)
+```
+
+
+#### Eliminar NA para este análisis (gaussiano no admite NA)
+```{r}
+datos_ <- na.omit(datos_buenos)
+colSums(is.na(datos_))
+```
+
+
+#### Renombrado corto
+```{r}
+colnames(datos_) <- c(
+  "E","M","ES","S","C19","NO","CO","SO","MN","C","T","F","FO","H","CT","AC","HB"
+)
+head(datos_)
+```
+
+
+
+### 3.1 Estándar Covid y numérico en CT
+
+#### Estandarizar C19: 1-4 -> 1 (sí), 98-99 -> 0 (no)
+```{r}
+datos_ <- datos_ %>%
+  mutate(C19 = case_when(
+    C19 %in% c(1,2,3,4) ~ 1,
+    C19 %in% c(98,99)   ~ 0
+  ))
+unique(datos_$C19)
+```
+
+
+#### Convertir CT que viene con coma decimal
+```{r}
+datos_ <- datos_ %>%
+  mutate(CT = as.numeric(str_replace(CT, ",", "\\.")))
+head(datos_)
+
+```
+
+### 3.2 Dataset continuo para GBN
+
+#### Quitamos categóricas (se usarán después en sección aparte)
+```{r}
+data <- datos_ |>
+  select(-E, -M, -C19, -MN, -ES, -S)
+
+head(data)
+colnames(data)
+```
+
+
+## 4. DAGs propuestas por expertos
+
+```{r}
+dag1 <- model2network("[NO][CO][SO][CT|NO:CO:SO][AC|NO:CO:SO:CT][HB|NO:SO][F|NO:CO:SO:HB][T|HB:AC:F][C|HB:AC:F][FO][H|NO:CO:SO:FO]")
+dag2 <- model2network("[NO][CO][SO][HB|NO:CO:SO][AC|NO:CO:SO][H|NO:CO:SO:FO][FO][F|CT][CT|NO:SO][T|HB:AC][C|HB:AC]")
+dag3 <- model2network("[NO][CO][SO][H|NO:CO:SO:FO][FO][F|SO][CT|NO:CO:SO][AC|H:CT][HB|NO:SO][T|HB:AC][C|HB:AC]")
+
+graphviz.plot(dag1, shape = "ellipse")
+graphviz.plot(dag2, shape = "ellipse")
+graphviz.plot(dag3, shape = "ellipse")
+```
+
+
+## 5. Comparación de estructuras (BICg, AICg, BGe)
+
+```{r}
+dags <- list(dag1 = dag1, dag2 = dag2, dag3 = dag3)
+
+tibble(
+  DAG  = names(dags),
+  BICg = map_dbl(dags, ~ score(.x, data = data, type = "bic-g")),
+  AICg = map_dbl(dags, ~ score(.x, data = data, type = "aic-g")),
+  BGe  = map_dbl(dags, ~ score(.x, data = data, type = "bge"))
+)
+```
+
+
+Conclusión: la DAG3 obtiene los mejores (menos negativos) puntajes en BICg/AICg y es la seleccionada.
+
+## 6. Ajuste gaussiano de la DAG seleccionada
+
+```{r}
+data_g <- as.data.frame(data)
+fit <- bn.fit(dag3, data = data_g, method = "mle-g")
+fit
+```
+
+
+## 7. Modelos paramétricos por nodo (coherentes con DAG3)
+
+(GAM para posibles no linealidades; LM como referencia; se comparan por AIC)
+
+```{r}
+# Raíces
+mod_NO <- lm(NO ~ 1, data = data_g)
+mod_CO <- lm(CO ~ 1, data = data_g)
+mod_SO <- lm(SO ~ 1, data = data_g)
+mod_FO <- lm(FO ~ 1, data = data_g)
+
+# GAM (nodos con padres)
+mod_gam_H  <- gam(H  ~ s(NO) + s(CO) + s(SO) + s(FO), data = data_g, method = "REML")
+mod_gam_F  <- gam(F  ~ s(SO),                        data = data_g, method = "REML")
+mod_gam_CT <- gam(CT ~ s(NO) + s(CO) + s(SO),        data = data_g, method = "REML")
+mod_gam_AC <- gam(AC ~ s(H)  + s(CT),                data = data_g, method = "REML")
+mod_gam_HB <- gam(HB ~ s(NO) + s(SO),                data = data_g, method = "REML")
+mod_gam_T  <- gam(T  ~ s(HB) + s(AC),                data = data_g, method = "REML")
+mod_gam_C  <- gam(C  ~ s(HB) + s(AC),                data = data_g, method = "REML")
+
+# LM (referencia lineal)
+mod_lm_H  <- lm(H  ~ NO + CO + SO + FO, data = data_g)
+mod_lm_F  <- lm(F  ~ SO,                data = data_g)
+mod_lm_CT <- lm(CT ~ NO + CO + SO,      data = data_g)
+mod_lm_AC <- lm(AC ~ H  + CT,           data = data_g)
+mod_lm_HB <- lm(HB ~ NO + SO,           data = data_g)
+mod_lm_T  <- lm(T  ~ HB + AC,           data = data_g)
+mod_lm_C  <- lm(C  ~ HB + AC,           data = data_g)
+
+aic_comp <- data.frame(
+  nodo   = c("H","F","CT","AC","HB","T","C"),
+  AIC_GAM= c(AIC(mod_gam_H), AIC(mod_gam_F), AIC(mod_gam_CT),
+             AIC(mod_gam_AC), AIC(mod_gam_HB), AIC(mod_gam_T), AIC(mod_gam_C)),
+  AIC_LM = c(AIC(mod_lm_H),  AIC(mod_lm_F),  AIC(mod_lm_CT),
+             AIC(mod_lm_AC), AIC(mod_lm_HB),  AIC(mod_lm_T),  AIC(mod_lm_C))
+)
+aic_comp$mejor <- ifelse(aic_comp$AIC_GAM < "AIC_LM", "GAM", "LM")
+aic_comp
+```
+
+
+Nota: Si te marca objeto no encontrado en aIC_LM es por typo; debe ser AIC_LM en mayúsculas.
+
+## 8. Queries principales (probabilidades condicionadas)
+
+```{r}
+# Umbrales (percentiles)
+
+set.seed(42) 
+
+thrNO <- as.numeric(quantile(data$NO, .90))
+thrCO <- as.numeric(quantile(data$CO, .90))
+thrSO <- as.numeric(quantile(data$SO, .90))
+thrC  <- as.numeric(quantile(data$C,  .75))
+thrT  <- as.numeric(quantile(data$T,  .75))
+thrHB <- as.numeric(quantile(data$HB, .75))
+thrCT <- as.numeric(quantile(data$CT, .75))
+thrF  <- as.numeric(quantile(data$F,  .75))
+thrH  <- as.numeric(quantile(data$H,  .75))
+
+# Probabilidad P( evento | evidencia ) por muestreo y filtrado
+p_rs <- function(event_expr, evidence_expr, n = 2e5) {
+  samp <- as.data.frame(rbn(fit, n = n))  # simula desde la BN
+  ok   <- eval(evidence_expr, envir = samp)
+  if (!any(ok)) return(NA_real_)
+  mean(eval(event_expr, envir = samp[ok, , drop = FALSE]))
+}
+```
+
+
+### 8.1 Query 1: Contaminación y dislipidemia
+
+¿Cuando aumentan los niveles de contaminantes (NO, CO, SO), se incrementa la probabilidad de observar colesterol o triglicéridos elevados?
+
+```{r}
+# === Dislipidemia (C o T altos) dado contaminante alto ===
+p_dislip_NO <- p_rs( quote((C > thrC) | (T > thrT)), quote(NO > thrNO) )
+p_dislip_CO <- p_rs( quote((C > thrC) | (T > thrT)), quote(CO > thrCO) )
+p_dislip_SO <- p_rs( quote((C > thrC) | (T > thrT)), quote(SO > thrSO) )
+base_dislip <- p_rs( quote((C > thrC) | (T > thrT)), quote(TRUE) )
+
+c(NO = p_dislip_NO, CO = p_dislip_CO, SO = p_dislip_SO, Base = base_dislip)
+```
+
+
+### 8.2 Query 2: Contaminación y diabetes
+
+¿Cuando aumentan los niveles de contaminantes (NO, CO, SO), se incrementa la probabilidad de observar HbA1c elevada?
+
+```{r}
+p_dm_NO <- p_rs( quote(HB > thrHB), quote(NO > thrNO) )
+p_dm_CO <- p_rs( quote(HB > thrHB), quote(CO > thrCO) )
+p_dm_SO <- p_rs( quote(HB > thrHB), quote(SO > thrSO) )
+base_dm <- p_rs( quote(HB > thrHB), quote(TRUE) )
+
+c(NO = p_dm_NO, CO = p_dm_CO, SO = p_dm_SO, Base = base_dm)
+```
+
+
+### 8.3 Query 3: Contaminación y función renal
+
+¿Cuando aumentan los niveles de contaminantes (NO, CO, SO), se incrementa la probabilidad de observar creatinina elevada?
+
+```{r}
+p_ckd_NO <- p_rs( quote(CT > thrCT), quote(NO > thrNO) )
+p_ckd_CO <- p_rs( quote(CT > thrCT), quote(CO > thrCO) )
+p_ckd_SO <- p_rs( quote(CT > thrCT), quote(SO > thrSO) )
+base_ckd <- p_rs( quote(CT > thrCT), quote(TRUE) )
+
+c(NO = p_ckd_NO, CO = p_ckd_CO, SO = p_ckd_SO, Base = base_ckd)
+```
+
+
+### 8.4 Query 4: Contaminación, ferritina/folatos y riesgo metabólico
+
+¿Niveles altos de contaminantes (NO, CO, SO) se asocian con ferritina o folatos anormales y mayor riesgo cardiovascular (C, T, HB, CT, H)?
+
+```{r}
+# Componente nutricional
+p_ferr_NO <- p_rs( quote(F  > thrF),                           quote(NO > thrNO) )
+p_ferr_SO <- p_rs( quote(F  > thrF),                           quote(SO > thrSO) )
+p_fol_NO  <- p_rs( quote(FO < median(data_g$FO, na.rm = TRUE)), quote(NO > thrNO) )
+p_fol_SO  <- p_rs( quote(FO < median(data_g$FO, na.rm = TRUE)), quote(SO > thrSO) )
+
+# Proxy de riesgo metabólico compuesto: H, F, C, T, HB (y puedes incluir CT si quieres)
+p_cv_NO <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
+                 quote( NO > thrNO ) )
+p_cv_CO <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
+                 quote( CO > thrCO ) )
+p_cv_SO <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
+                 quote( SO > thrSO ) )
+base_cv <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
+                 quote(TRUE) )
+
+c(Ferr_NO = p_ferr_NO, Ferr_SO = p_ferr_SO, Fol_NO = p_fol_NO, Fol_SO = p_fol_SO,
+  CV_NO = p_cv_NO, CV_CO = p_cv_CO, CV_SO = p_cv_SO, Base = base_cv)
+```
+
+
+## 9. Exploración con variables categóricas
+
+```{r}
+data_cat <- datos_ |>
+  select(-E, -M, -C19, -MN)
+
+# Si ES y S ya vienen en datos_, quitar el muestreo ficticio.
+data_cat$ES <- as.factor(data_cat$ES)
+data_cat$S  <- as.factor(data_cat$S)
+
+str(data_cat)
+
+dag_cat <- model2network("[S][ES][NO][CO][SO][H|NO:CO:SO:FO:ES:S][FO][F|SO][CT|NO:CO:SO][AC|H:CT][HB|NO:SO][T|HB:AC][C|HB:AC:ES:S]")
+graphviz.plot(dag_cat, shape = "ellipse")
+# Ajuste mixto (si hay factores + continuas):
+# fit_cat <- bn.fit(dag_cat, data = data_cat, method = "mle-cg")
+```
+
+
+## 10. Conclusiones
+	•	DAG3 resultó la mejor por BICg/AICg/BGe.
+	•	El ajuste gaussiano (bn.fit con mle-g) es coherente con que todas las variables son numéricas.
+	•	Los queries 1–4 responden a lo planteado por expertos con variables disponibles.
+	•	Temas sin variables (demencia, cáncer, homocisteína, albúmina) se dejan fuera por ahora o para trabajo futuro.

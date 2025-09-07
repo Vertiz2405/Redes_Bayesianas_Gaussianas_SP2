@@ -12,14 +12,18 @@ format:
     embed-resources: true
     self-contained-math: true
     df-print: kable
-editor: source 
+editor: source
 ---
+
 Instalamos la librerias que vamos a utilizar
+
 ```{r}
 #install.packages("tidyverse")
 
 ```
+
 Cargamos las librerias que utilizaremos.
+
 ```{r}
 library(tidyverse)
 library(bnlearn)
@@ -35,16 +39,19 @@ Aqui vamos a cargar los datos que utilizaremos (que son los limpios)
 data = read_csv("../data_ensanut/datos2.csv")
 head(data)
 ```
-Ya teniendo la opinión de los expertos solo utilizaremos las variables que nos dieron. 
 
-Es por eso que vamos a seleccionar las que necesitaremos. 
+Ya teniendo la opinión de los expertos solo utilizaremos las variables que nos dieron.
+
+Es por eso que vamos a seleccionar las que necesitaremos.
 
 Pero primero vamos a ver los nombres de las variables que tenemos
 
 ```{r}
 colnames(data)
 ```
+
 Ahora si ya tengo mis 17 variables que usaré. Creamos una lista de las variables a utilizar para crear el data de esas variables.
+
 ```{r}
 vars_usar <- c("desc_ent", "desc_mun", "estrato", "h0302", "h1205", "NOx",
                "COV", "SO_2", "nota03", "valor_COLEST", "valor_TRIG",
@@ -52,6 +59,7 @@ vars_usar <- c("desc_ent", "desc_mun", "estrato", "h0302", "h1205", "NOx",
 ```
 
 creamos un dataframe con solo las variables a usar
+
 ```{r}
 datos_buenos <- data[, vars_usar]
 ```
@@ -76,24 +84,9 @@ Vamos a contar cuantas columnas tienen NA
 ```{r}
 colSums(is.na(datos_))
 ```
-Perfecto ya no hay ningun na, ahora lo que haremos es cambiar el nombre de las variables (columnas) para que sean mas fáciles de manejar.
-E = Entidad
-M = Municipio
-ES = Estrato
-S =  Sexo
-C19 = Covid 19
-NO = Nivel NOx
-CO = Nivel de COv
-SO = Nivel de S0_2
-MN = Micornutrimentos
-C = Colesterol Total
-T = Trigliceridos
-F = valor de Ferritina
-FO = Valor de Fol
-H = Valor de HCST
-CT = Valor de Creatinina
-AC = Valor de Ácido Úrico
-HB = Valor de Hemoglobina Glucosilda
+
+Perfecto ya no hay ningun na, ahora lo que haremos es cambiar el nombre de las variables (columnas) para que sean mas fáciles de manejar. E = Entidad M = Municipio ES = Estrato S = Sexo C19 = Covid 19 NO = Nivel NOx CO = Nivel de COv SO = Nivel de S0_2 MN = Micornutrimentos C = Colesterol Total T = Trigliceridos F = valor de Ferritina FO = Valor de Fol H = Valor de HCST CT = Valor de Creatinina AC = Valor de Ácido Úrico HB = Valor de Hemoglobina Glucosilda
+
 ```{r}
 colnames(datos_) = c("E", "M", "ES", "S", "C19", "NO","CO", "SO", "MN", "C", "T", "F", "FO", "H", "CT", "AC", "HB")
 ```
@@ -110,8 +103,7 @@ Ahora revisamos que informacion contiene la variable de Covid (C19).
 unique(datos_$C19)
 ```
 
-Ahora como la varible C19 se significa cuantas veces ha tenido covid desde el 2020. Esta variable nos arroja 1, 2,3 ,4, 98 y 99. Estos se significa 1 = ha tenido una vez covid desde el 2020, 2 = ha tenido 2 veces covid desde el 2020, 3 = ha tenido 3 veces covid desde el 2020, 4 = ha tenido covid 4 veces desde el 2020, 98 = no ha tenido covid desde el 2020, 99 = no recuerda / no contestó.
-Entonces lo que haremos es estandarizar esta variable, si la variable es 1,2,3,4 = 1 (si ha tenido covid) y si la variable es 98 ,99 = 0 (no ha tenido covid). Esto para facilitar la dag.
+Ahora como la varible C19 se significa cuantas veces ha tenido covid desde el 2020. Esta variable nos arroja 1, 2,3 ,4, 98 y 99. Estos se significa 1 = ha tenido una vez covid desde el 2020, 2 = ha tenido 2 veces covid desde el 2020, 3 = ha tenido 3 veces covid desde el 2020, 4 = ha tenido covid 4 veces desde el 2020, 98 = no ha tenido covid desde el 2020, 99 = no recuerda / no contestó. Entonces lo que haremos es estandarizar esta variable, si la variable es 1,2,3,4 = 1 (si ha tenido covid) y si la variable es 98 ,99 = 0 (no ha tenido covid). Esto para facilitar la dag.
 
 ```{r}
 datos_ <- datos_ %>%
@@ -130,7 +122,8 @@ Checamos los valores de la variables C19
 ```{r}
 unique(datos_$C19)
 ```
-Ahora lo que haremos es como CT (Valor de creatinina) son caracteres. por lo tanto, lo convertimos a numericas. 
+
+Ahora lo que haremos es como CT (Valor de creatinina) son caracteres. por lo tanto, lo convertimos a numericas.
 
 ```{r}
 datos_ <- datos_ %>%
@@ -143,8 +136,8 @@ Checamos que si se haya remplazado:
 head(datos_)
 ```
 
+Luego vamos a dropear la columnas de E (Entidad), M (Municipio), S (Sexo), ES(Estrato) C19 (Covid) y el MN (Micronutrimentos). Esto por que no son Continuas. Luego las utilizaremos en otras DAGS
 
-Luego vamos a dropear la columnas de E (Entidad), M (Municipio), S (Sexo), ES(Estrato) C19 (Covid) y el MN (Micronutrimentos). Esto por que no son Continuas. Luego las utilizaremos en otras DAGS 
 ```{r}
 
 data = datos_ |>
@@ -173,7 +166,6 @@ dag1 <- model2network("[NO][CO][SO][CT|NO:CO:SO][AC|NO:CO:SO:CT][HB|NO:SO][F|NO:
 graphviz.plot(dag1, shape = "ellipse")
 ```
 
-
 ```{r}
 dag2 <- model2network("[NO][CO][SO][HB|NO:CO:SO][AC|NO:CO:SO][H|NO:CO:SO:FO][FO][F|CT][CT|NO:SO][T|HB:AC][C|HB:AC]")
 
@@ -192,36 +184,31 @@ dag3 <- model2network("[NO][CO][SO][H|NO:CO:SO:FO][FO][F|SO][CT|NO:CO:SO][AC|H:C
 ```{r}
 graphviz.plot(dag3, shape = "ellipse")
 ```
+
 Comparamos las DAGs dados sus scores:
 
 ```{r}
-score(dag1, data = data, type = "bic-g")
+library(dplyr)
+library(purrr)
+
+dags <- list(dag1 = dag1, dag2 = dag2, dag3 = dag3)
+
+tibble(
+  DAG = names(dags),
+  BICg = map_dbl(dags, ~ score(.x, data = data, type = "bic-g")),
+  AICg = map_dbl(dags, ~ score(.x, data = data, type = "aic-g")),
+  BGe  = map_dbl(dags, ~ score(.x, data = data, type = "bge"))
+)
 ```
 
-```{r}
-score(dag2, data = data, type = "bic-g")
-```
+Al comparar los scores de las tres DAGs propuestas por los expertos, se calculó tanto el BICg como el AICg (criterios de información para distribuciones gaussianas, implementados en bnlearn). Los resultados muestran que la DAG 3 alcanza el mejor desempeño, con los valores más altos (menos negativos) en ambos criterios, superando a las DAGs 1 y 2. Por lo tanto, se selecciona la DAG 3 como la estructura más adecuada para continuar el análisis.
 
-```{r}
-score(dag3, data = data, type = "bic-g")
-```
-
-```{r}
-best_dag = hc(data)
-str(data)   
-```
-
-```{r}
-modelstring(best_dag)
-```
-
-```{r}
-graphviz.plot(best_dag, shape = "ellipse")
-```
+Adicionalmente, este tipo de comparación puede complementarse con otros métodos, como el BGe score (Bayesian Gaussian equivalent), disponible en bnlearn para redes gaussianas. Este criterio es de naturaleza bayesiana y ofrece una alternativa al BICg/AICg, pudiendo reportarse de manera similar para reforzar la robustez de la selección del modelo.
 
 # Inclusion Variables Categoricas
 
 Vamos a incluir el sexo y el estrato, por lo que dropearemos las mismas varibales que antes menos estas 2
+
 ```{r}
 
 data_cat = datos_ |>
@@ -263,13 +250,90 @@ dag_cat <- model2network("[S][ES][NO][CO][SO][H|NO:CO:SO:FO:ES:S][FO][F|SO][CT|N
 ```
 
 ```{r}
-fitted_model <- bn.fit(dag_cat, data = data_cat)
+#fitted_model <- bn.fit(dag_cat, data = data_cat)
 ```
-
 
 ```{r}
 graphviz.plot(dag_cat, shape = "ellipse")
 ```
 
+```{r}
+data_g <- as.data.frame(data)
+fit <- bn.fit(dag3, data = data_g, method= "mle-g")
+```
 
+```{r}
+fit
+```
 
+```{r}
+library(mgcv)
+mod_NO = lm(NO ~ 1, data = data)
+mod_CO = lm(CO ~ 1, data = data)
+mod_SO = lm(SO ~ 1, data = data)
+mod_FO = lm(FO ~ 1, data = data)
+# H | NO, CO, SO, FO
+mod_gam_H  <- gam(H  ~ s(NO) + s(CO) + s(SO) + s(FO), data = data_g, method = "REML")
+
+# F | SO
+mod_gam_F  <- gam(F  ~ s(SO), data = data_g, method = "REML")
+
+# CT | NO, CO, SO
+mod_gam_CT <- gam(CT ~ s(NO) + s(CO) + s(SO), data = data_g, method = "REML")
+
+# AC | H, CT
+mod_gam_AC <- gam(AC ~ s(H)  + s(CT), data = data_g, method = "REML")
+
+# HB | NO, SO
+mod_gam_HB <- gam(HB ~ s(NO) + s(SO), data = data_g, method = "REML")
+
+# T | HB, AC
+mod_gam_T  <- gam(T  ~ s(HB) + s(AC), data = data_g, method = "REML")
+
+# C | HB, AC
+mod_gam_C  <- gam(C  ~ s(HB) + s(AC), data = data_g, method = "REML")
+
+mod_lm_H  <- lm(H  ~ NO + CO + SO + FO, data = data_g)
+mod_lm_F  <- lm(F  ~ SO,                data = data_g)
+mod_lm_CT <- lm(CT ~ NO + CO + SO,      data = data_g)
+mod_lm_AC <- lm(AC ~ H  + CT,           data = data_g)
+mod_lm_HB <- lm(HB ~ NO + SO,           data = data_g)
+mod_lm_T  <- lm(T  ~ HB + AC,           data = data_g)
+mod_lm_C  <- lm(C  ~ HB + AC,           data = data_g)
+
+aic_comp <- data.frame(
+  nodo = c("H","F","CT","AC","HB","T","C"),
+  AIC_GAM = c(AIC(mod_gam_H), AIC(mod_gam_F), AIC(mod_gam_CT),
+              AIC(mod_gam_AC), AIC(mod_gam_HB), AIC(mod_gam_T), AIC(mod_gam_C)),
+  AIC_LM  = c(AIC(mod_lm_H),  AIC(mod_lm_F),  AIC(mod_lm_CT),
+              AIC(mod_lm_AC), AIC(mod_lm_HB),  AIC(mod_lm_T),  AIC(mod_lm_C))
+)
+aic_comp$mejor <- ifelse(aic_comp$AIC_GAM < aic_comp$AIC_LM, "GAM", "LM")
+aic_comp
+```
+
+### Query 1: Dislipidemia
+
+¿Cuando los niveles de un contaminante (NO, CO o SO) son altos, aumenta la probabilidad de que una persona presente **colesterol o triglicéridos elevados**?
+
+```{r}
+"p_dislip_NO <- p_cond( (C > thrC) | (T > thrT), NO > thrNO )
+p_dislip_CO <- p_cond( (C > thrC) | (T > thrT), CO > thrCO )
+p_dislip_SO <- p_cond( (C > thrC) | (T > thrT), SO > thrSO )"
+```
+
+### Query 2
+
+¿Cuando aumentan los niveles de cierto contaminante, se observa mayor necesidad de atención médica relacionada con el corazón y la circulación?
+
+```{r}
+
+```
+
+### Query 3
+
+¿Cuando aumentan los niveles de cierto contaminante, se observa mayor necesidad de atención médica relacionada con el corazón y la circulación?
+
+```{r}
+
+```
