@@ -25,7 +25,13 @@ library(dplyr)
 # Abstract
 
 # Introducción
+La calidad del aire en México constituye uno de los principales retos de salud pública, ya que la exposición crónica a contaminantes como dióxido de azufre (SO₂), óxidos de nitrógeno (NOx) y monóxido de carbono (CO) se ha vinculado con un aumento en enfermedades cardiovasculares, respiratorias y metabólicas (Secretaría de Salud, 2022; World Health Organization [WHO], 2021). Estos contaminantes pueden alterar biomarcadores clave, como la hemoglobina glucosilada, los lípidos en sangre o la función renal, lo que los convierte en variables fundamentales para estudiar la relación entre ambiente y salud.
 
+El objetivo de este trabajo es implementar un modelo probabilístico que ayude a comprender cómo los factores ambientales influyen en la salud de la población mexicana, con el fin de ofrecer insumos para políticas públicas y estrategias de prevención. Dicho modelo busca integrar información sobre contaminantes atmosféricos y biomarcadores clínicos, permitiendo visualizar relaciones causales y dependencias condicionales que no siempre son evidentes con enfoques estadísticos tradicionales.
+
+En este contexto, las redes bayesianas gaussianas (RBG) ofrecen una herramienta poderosa, pues permiten representar la estructura de dependencias entre variables continuas bajo supuestos de normalidad multivariada. Cada nodo de la red representa una variable, y las aristas describen relaciones de dependencia probabilística. Esto facilita la estimación de probabilidades conjuntas y condicionales, incluso en presencia de datos incompletos, así como la simulación de escenarios hipotéticos (Koller & Friedman, 2009). Su importancia radica en que integran el conocimiento experto con los datos empíricos, generando modelos interpretables que apoyan la toma de decisiones en salud pública y políticas ambientales (Pearl, 2009).
+
+De esta manera, aplicar redes bayesianas gaussianas a la relación entre contaminación y salud en México no solo permite identificar qué contaminantes afectan más a ciertos biomarcadores, sino también diseñar intervenciones más focalizadas, orientadas a la prevención y al cuidado integral de la población.
 # Metodología
 
 ## Limpieza de Datos
@@ -180,6 +186,9 @@ La Mtra. Judith remitió un listado estructurado de variables para el análisis 
 
 En conjunto, su aporte funciona como glosario/plantilla de variables para vincular exposición a contaminantes con biomarcadores y demanda de atención, habilitando comparaciones por edad, sexo, entidad, estrato y ocupación; no formula hipótesis explícitas, sino que sienta la base para construir preguntas de investigación y modelos estadísticos.
 
+De manera convergente, las tres recomendaciones coinciden en la necesidad de vincular la exposición a contaminantes atmosféricos con biomarcadores sanguíneos y analizarlos bajo un marco sociodemográfico, dando a entender que las variables que les fueron comparidas sí tenían relevancia. Tanto el Dr. Alberto como el Dr. Victor subrayan la importancia de la proteína C reactiva (PCR) y otros marcadores de inflamación en relación con contaminantes como PM2.5, NOx, COV y amoníaco, mientras que la Mtra. Judith aporta un glosario estructurado que refuerza esta misma línea al incluir biomarcadores de inflamación, metabolismo y micronutrientes junto con variables ambientales y sociales. En conjunto, los tres enfoques concluyen en priorizar la PCR como indicador central, considerar múltiples contaminantes relevantes y dar peso a los factores demográficos para sustentar modelos comparativos y preguntas de investigación sólidas.
+
+
 ## DAGs
 
 ## Evaluación de las DAGs
@@ -192,4 +201,10 @@ En conjunto, su aporte funciona como glosario/plantilla de variables para vincul
 
 # Referencias
 
+Koller, D., & Friedman, N. (2009). Probabilistic Graphical Models: Principles and Techniques. MIT Press.
 
+Pearl, J. (2009). Causality: Models, Reasoning and Inference (2nd ed.). Cambridge University Press.
+
+Secretaría de Salud. (2022). Informe sobre la calidad del aire y salud en México. Gobierno de México.
+
+World Health Organization. (2021). Air pollution. https://www.who.int/health-topics/air-pollution
