@@ -1,4 +1,9 @@
 <<<<<<< HEAD
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+=======
 .DS_Store
 .Rproj.user/
 *.Rproj
@@ -9,9 +14,4 @@
 *.html
 _site/
 ~$*
-=======
-.Rproj.user
-.Rhistory
-.RData
-.Ruserdata
->>>>>>> 74488e4 (Agrego mi .gitignore local)
+>>>>>>> 79cc15834663f594481154f3b473ed7883294452

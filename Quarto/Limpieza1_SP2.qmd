@@ -103,7 +103,7 @@ for (b in bases) {
 
 datos <- datos %>% select(-ends_with(".x"), -ends_with(".y"))
 names(datos)
-write.csv(datos, "datos.csv", row.names = FALSE)
+write.csv(datos, "../data_ensanut/datos.csv", row.names = FALSE)
 ```
 
 

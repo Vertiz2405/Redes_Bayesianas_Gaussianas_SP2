@@ -18,7 +18,7 @@ library(dplyr)
 
 ```{r}
 data_aire <- read.csv("../data_ensanut/calidad_aire_2025.csv")
-data_aire
+head(data_aire)
 ```
 
 ```{r}
@@ -33,6 +33,7 @@ data_aire <- data_aire[data_aire$Tipo_de_Fuente == "Fuentes fijas", ]
 data_aire$Entidad <- NULL
 data_aire
 ```
+
 ```{r}
 unique(data_aire$Entidad_federativa)
 ```
@@ -155,8 +156,9 @@ resultado
 ```
 
 ```{r}
-write_csv(resultado, "../data_ensanut/data.csv")
+write_csv(resultado, "../data_ensanut/datos2.csv")
 ```
+
 
 
 
