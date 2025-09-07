@@ -190,6 +190,164 @@ De manera convergente, las tres recomendaciones coinciden en la necesidad de vin
 
 
 ## DAGs
+Para la creación de las DAGS utilizamos las variables en común de los 3 expertos, asimismo nos basamos completamente en sus opiniones. Aunque no utilizamos todas las variables de los expertos en sus DAGS ya que necesitamos hacer una comparación de las DAGS para saber cuál fue la mejor. Y así utilizarla para las queries que ellos mismos nos propusieron.
+
+Pero antes de la creación de las DAGs hicimos una pequeña limpieza para poder quedarnos con un dataframe con solo las variables. 
+Lo primero que hicimos fue seleccionar las variables de interés. Al tenerlas, eliminamos las observaciones que tuvieran algún valor faltante. Ya teniendo esto listo renombramos las columnas para tener mayor control que son las siguientes:
+E = Entidad
+M = Municipio
+ES = Estrato
+S = Sexo
+C19 = COVID 19
+NO = Nivel NOx
+CO = Nivel de COv
+SO = Nivel de S0_2
+MN = Micronutrientes
+C = Colesterol Total
+T = Triglicéridos
+F = valor de Ferritina
+FO = Valor de Fol.
+H = Valor de HCST
+CT = Valor de Creatinina
+AC = Valor de Ácido Úrico
+HB = Valor de Hemoglobina Glucosilada
+
+Después lo que hicimos fue estandarizar la variable C19, si la variable es 1,2,3,4 = 1 (si ha tenido COVID) y si la variable es 98 ,99 = 0 (no ha tenido COVID). Esto para facilitar las DAGs.
+Como la mayoría de nuestras variables eran caracteres y tenían comas (,) en lugar de puntos (.). Las convertimos a numéricas y remplazamos las comas por puntos. 
+Como por el momento vamos a hacer las DAGs con solo variables continuas y no categóricas o dicotómicas eliminamos las siguientes columnas (variables). E (Entidad), M (Municipio), S (Sexo), ES(Estrato) C19 (COVID) y el MN (Micronutrientes). 
+Y así se ve nuestros dataframe final.
+
+
+```{r}
+#| echo: false
+#| output: false
+library(tidyverse)
+library(bnlearn)
+```
+```{r}
+#| echo: false
+#| output: false
+library(dplyr)
+```
+
+```{r}
+#| echo: false
+#| output: false
+data = read_csv("../data_ensanut/datos2.csv")
+head(data)
+```
+
+```{r}
+#| echo: false
+#| output: false
+colnames(data)
+```
+```{r}
+#| echo: false
+#| output: false
+vars_usar <- c("desc_ent", "desc_mun", "estrato", "h0302", "h1205", "NOx",
+               "COV", "SO_2", "nota03", "valor_COLEST", "valor_TRIG",
+               "valor_FERRITINA", "valor_FOL", "valor_HCST","valor_CREAT", "valor_AC_URICO", "valor_HB1AC")
+```
+
+```{r}
+#| echo: false
+#| output: false
+datos_buenos <- data[, vars_usar]
+```
+
+```{r}
+#| echo: false
+#| output: false
+head(datos_buenos)
+```
+
+```{r}
+#| echo: false
+#| output: false
+datos_ <- na.omit(datos_buenos)
+head(datos_)
+```
+```{r}
+#| echo: false
+#| output: false
+colSums(is.na(datos_))
+```
+```{r}
+#| echo: false
+#| output: false
+colnames(datos_) = c("E", "M", "ES", "S", "C19", "NO","CO", "SO", "MN", "C", "T", "F", "FO", "H", "CT", "AC", "HB")
+```
+
+```{r}
+#| echo: false
+#| output: false
+head(datos_)
+```
+
+```{r}
+#| echo: false
+#| output: false
+datos_ <- datos_ %>%
+  mutate(C19 = case_when(
+    C19 %in% c(1,2,3,4) ~ 1,   
+    C19 %in% c(98,99)   ~ 0, ))
+```
+
+```{r}
+#| echo: false
+#| output: false
+datos_ <- datos_ %>%
+  mutate(CT = as.numeric(str_replace(CT, ",", "\\.")))
+```
+
+```{r}
+#| echo: false
+data = datos_ |>
+        select(-E,-M, -C19, -MN, -ES, -S)
+```
+
+```{r}
+#| echo: false
+head(data)
+```
+
+Ya teniendo nuestro dataframe final creamos las 3 DAGS.
+
+```{r}
+#| echo: false
+dag1 <- model2network("[NO][CO][SO][CT|NO:CO:SO][AC|NO:CO:SO:CT][HB|NO:SO][F|NO:CO:SO:HB][T|HB:AC:F][C|HB:AC:F][FO][H|NO:CO:SO:FO]")
+```
+
+DAG 1:
+```{r}
+#| echo: false
+graphviz.plot(dag1, shape = "ellipse")
+```
+DAG 2: 
+```{r}
+#| echo: false
+dag2 <- model2network("[NO][CO][SO][HB|NO:CO:SO][AC|NO:CO:SO][H|NO:CO:SO:FO][FO][F|CT][CT|NO:SO][T|HB:AC][C|HB:AC]")
+```
+
+```{r}
+#| echo: false
+
+
+graphviz.plot(dag2, shape = "ellipse")
+```
+
+```{r}
+#| echo: false
+
+dag3 <- model2network("[NO][CO][SO][H|NO:CO:SO:FO][FO][F|SO][CT|NO:CO:SO][AC|H:CT][HB|NO:SO][T|HB:AC][C|HB:AC]")
+```
+
+
+```{r}
+#| echo: false
+graphviz.plot(dag3, shape = "ellipse")
+```
 
 ## Evaluación de las DAGs
 
