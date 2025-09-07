@@ -34,7 +34,7 @@ library(dplyr)
 
 ### Limpieza 2
 
-El objetivo de la segunda limpieza es incluir los datos de calidad de aire, recolectados por SEMARNAT en el 2025, con la información previamente del ENSANUT acerca de estudios de sangre de personas y sus respectivos datos demograficos. Asumiremos que esta informacion son buenas estimaciones para los contaminantes del 2022. 
+El objetivo de la segunda limpieza es incluir los datos de calidad de aire, recolectados por SEMARNAT en el 2025, con la información previamente del ENSANUT acerca de estudios de sangre de personas y sus respectivos datos demográficos. Asumiremos que esta información son estimaciones adecuadas para los contaminantes del 2022. 
 
 Los datos con los que contamos en calidad de aire son los siguientes (las 5 observaciones son ejemplo):
 ```{r}
@@ -49,7 +49,7 @@ head(data_aire)
 datos2 <- read.csv("../data_ensanut/datos.csv")
 ```
 
-Lo primero que hicimos fue determinar un tipo de fuente de datos, debido a la magnitud de estos nos quedamos solo con los datos provenientes de fuentes fijas. Tambien quitamos la columan llamada "Entidad", ya que incluye la misma informacion que la columna llamada "Entidad_federativa". La tabla actualizada la vemos de la siguiente manera:
+Lo primero que hicimos fue determinar un tipo de fuente de datos, debido a la magnitud de estos, nos quedamos solo con los datos provenientes de fuentes fijas. También quitamos la columna llamada "Entidad", ya que incluye la misma información que la columna llamada "Entidad_federativa". La tabla actualizada la vemos de la siguiente manera:
 ```{r}
 #| echo: false
 data_aire <- data_aire[data_aire$Tipo_de_Fuente == "Fuentes fijas", ]
@@ -83,7 +83,7 @@ datos2$desc_ent <- substring(datos2$desc_ent, 4)
 datos2$desc_mun <- substring(datos2$desc_mun, 5)
 ```
 
-El siguiente paso fue verificar el nombre de entidad y municipuo de los 2 data frames, esto con el objetivo de ver como relacionar ambas tablas y poder unificar la informacion. En el caso de la tabla aire algunos ejemplos de entidades federativas y municipios son los siguientes:
+El siguiente paso fue verificar el nombre de entidad y municipio de los 2 data frames, esto con el objetivo de ver cómo relacionar ambas tablas y poder unificar la información. En el caso de la tabla aire algunos ejemplos de entidades federativas y municipios son los siguientes:
 
  - Aguascalientes
  - Baja California
@@ -97,15 +97,15 @@ El siguiente paso fue verificar el nombre de entidad y municipuo de los 2 data f
 - 002 ASIENTOS
 - 006 PABELLÓN DE ARTEAGA
 
-Con esta informacion decidimos que al primer grupo de datos (semarnat), tanto a las entidades y municipios las hariamos todas mayuscula. Mientras que en el segundo grupo de datos (ensanut), eliminariamos los numeros y el primer espacio. Con estos cambios ambas tablas tendrian el mismo formato para sus entidades y muncipios.
+Con esta información decidimos que al primer grupo de datos (SEMARNAT), tanto a las entidades y municipios las pasaríamos a un formato en mayúsculas únicamente. Mientras que en el segundo grupo de datos (ENSANUT), eliminaríamos los números y el primer espacio. Con estos cambios ambas tablas tendrían el mismo formato para sus entidades y muncipios.
 
-Una vez realizado estos cambios realizamos un antijoin entre ambas tablas, esto con la intencion de conocer que elementos seguian sin coincidir. En el caso de las entidades no coincidian 3, para los datos acerca del aire son los siguientes:
+Una vez realizado estos cambios realizamos un antijoin entre ambas tablas, esto con la intención de conocer qué elementos seguían sin coincidir. En el caso de las entidades no coincidían 3, para los datos acerca del aire son los siguientes:
 
 - COAHUILA				
 - MICHOACÁN				
 - VERACRUZ
 
-Mientras que en el conjunto de datos del ensanut aparecian de la siguiente manera:
+Mientras que en el conjunto de datos del ENSANUT aparecían de la siguiente manera:
 
 - COAHUILA DE ZARAGOZA				
 - MICHOACÁN DE OCAMPO				
@@ -125,11 +125,11 @@ datos2 <- datos2 %>%
   )
 ```
 
-Como se puede leer, estos son exactamente los mismos estados pero pequelas variaciones en los nombres. Debido a esto, modificamos el segundo conjutno de datos para que coincidiera con el primero
+Como se puede leer, estos son exactamente los mismos estados pero pequeñas variaciones en los nombres. Debido a esto, modificamos el segundo conjunto de datos para que coincidiera con el primero
 
-En el caso del los municipios, cuando realizamos un autojoin para conocer aquellas que no coincidian. Nos percatamos que no era por variaciones en los nombes, si no porque informacion de un municipio en cierta tabla, no se encontraba presente en la otra, esto sucedia en ambas direcciones. En este caso no realizamos ninguna modificacion. 
+En el caso del los municipios, cuando realizamos un autojoin para conocer aquellas que no coincidía,  nos percatamos que no era por variaciones en los nombres, si no porque información de un municipio en cierta tabla, no se encontraba presente en la otra, esto sucedía en ambas direcciones. En este caso no realizamos ninguna modificación. 
 
-Una vez realizados estos cambias ya podiamos realizar un inner join, para poder contar en una misma con todos los datos. Esta union la podemos visualizar en la siguiente tabla: 
+Una vez realizados estos cambios ya se pudo realizar un inner join, para poder contar en una misma con todos los datos. Esta unión la podemos visualizar en la siguiente tabla: 
 ```{r}
 #| echo: false
 #| output: false
@@ -143,13 +143,48 @@ head(resultado)
 - 
 # Metodología
 
-## Expertos quimicos
+## Expertos químicos
+Al tener nuestras bases de datos listas para usarse, el siguiente paso fue el comunicar nuestro objetivo y buscar la ayuda de expertos químicos. Los expertos contactados fueron: el Dr. Alberto Sánchez Estrada, ingeniero agrónomo en sistemas de producción agrícola, maestría en fruticultura y doctorado en agricultura protegida. Cuenta con gran conocimiento de el efecto de estos contaminantes en el aire; la Mtra. Judith Fortiz Hernández, ingeniera agroindustrial y maestra en ciencias agrícolas, su enfoque fue parecido al del Dr. Alberto; y por último contamos con la opinión de un experto en salud, el Dr. Víctor Zepeda Fortiz, licenciado en medicina. Para poder empezar el proceso, se desecharon las variables que no irrelevantes para el estudio, solo dejando todos los contaminantes y todos los resultados de las pruebas de salud, en estos no desechamos ninguna hasta obtener las opiniones de los expertos, junto con las variables esenciales sociodemográficas. Se colocaron en un archivo listo para que los expertos pudieran elegir las que creyeran más convenientes y pasar a la proposición de DAGs.
+
+El Dr. Alberto propuso enfocarse en evaluar cómo la exposición a contaminantes atmosféricos se relaciona con biomarcadores sanguíneos y diferencias demográficas. En particular, sugiere:  
+
+(i) analizar si el amoníaco modula la proteína C reactiva (PCR) mediado por el perfil lipídico (colesterol y triglicéridos);  
+
+(ii) estudiar la asociación de NOx y compuestos orgánicos volátiles con los niveles de ferritina considerando estrato social, edad, sexo y residencia;  
+
+(iii) vincular sulfatos, amoníaco y óxidos nitrosos/volátiles con folatos, con especial atención a mujeres gestantes y resultados al nacer;  
+
+(iv) relacionar CO₂ con albúmina y su posible interacción con colesterol y el estado nutricional; y  
+
+(v) examinar homocisteína en sinergia con albúmina ante exposición a CO₂, nitritos, amonio y sulfatos, explorando además la sensibilidad por edad y diferencias por sexo.
+
+El Dr. Victor propone centrar el análisis en la relación entre contaminación del aire y salud mediante biomarcadores clave y patrones de uso de servicios de salud. En particular, sugiere:  
+
+(i) priorizar la proteína C reactiva (PCR) como biomarcador principal y compararla frente a distintos contaminantes —con énfasis en PM2.5—, además de estratificar por variables sociodemográficas (entidad, edad, sexo, antecedente de COVID-19, zona de trabajo y estrato);  
+
+(ii) evaluar asociaciones específicas de contaminantes con enfermedades respiratorias, cardiovasculares y metabólicas;  
+
+(iii) explorar si vitaminas (B12 y folatos) modulan la necesidad de consulta médica;  
+
+(iv) formular preguntas guía sobre la relación entre niveles de contaminantes y elevación de PCR; y  
+
+(v) analizar qué contaminantes se vinculan más con enfermedades crónicas.
+
+La Mtra. Judith remitió un listado estructurado de variables para el análisis de contaminación y salud. En particular, especifica:  
+
+(i) **estratificadores sociodemográficos**: entidad, municipio, sexo, edad, estrato, zona de trabajo y antecedentes (necesidad de atención médica en 3 meses y haber sido paciente COVID);  
+
+(ii) **panel de biomarcadores** para inflamación, metabolismo, función renal y micronutrientes: proteína C reactiva (PCR), ferritina, receptor soluble de transferrina (sTfR), perfil lipídico (colesterol total, HDL, LDL, triglicéridos), HbA1c, glucosa promedio estimada (EAG), insulina, creatinina, albúmina, ácido úrico, homocisteína, folato, vitaminas B12 y D;  
+
+(iii) **variables ambientales**: tipo de fuente emisora y niveles de SO₂, CO, NOx, compuestos orgánicos volátiles (COV), PM₁₀, PM₂.₅ y NH₃.  
+
+En conjunto, su aporte funciona como glosario/plantilla de variables para vincular exposición a contaminantes con biomarcadores y demanda de atención, habilitando comparaciones por edad, sexo, entidad, estrato y ocupación; no formula hipótesis explícitas, sino que sienta la base para construir preguntas de investigación y modelos estadísticos.
 
 ## DAGs
 
 ## Evaluación de las DAGs
 
-## Variables categoricas 
+## Variables categóricas 
 
 # Aplicación
 
