@@ -420,11 +420,11 @@ Es decir, el mejor modelo relacional, dados los datos y la opinión de los exper
 
 ## Variables categóricas
 
-Un punto de interes muy fuerte en la cracion de un modelo como este es el sexo de la persona. Sin embargo, las redes bayeasianas gaussinas  solo nos permiten trabajar con variables continuas que siguen una distribución normal multivariada. Por lo que, no es posible incluir variables categoricas dentro de este marco.
+Un punto de interés muy fuerte en la creación de un modelo como el empleado es el sexo de la persona. Sin embargo, las redes bayeasianas gaussianas  solo nos permiten trabajar con variables continuas que siguen una distribución normal multivariada. Por lo que no es posible incluir variables categóricas dentro de este marco.
 
 ### Discretización
 
-El primer metodo consiste enuna discretizacion de todas las variables continuas, de modo que, estas variables ahora estaran representadas en un espacio discreto. Este cambio hace que pasemos de un modelo bayesiano gaussiano a un modelo bayesiano discreto. Diversos métodos han sido propuestos para elegir los puntos de corte, entre ellos estrategias simples (intervalos de igual amplitud o frecuencia) y enfoques más avanzados que incorporan la discretización dentro del propio proceso de aprendizaje de la red, buscando un equilibrio entre la complejidad del modelo y su capacidad de representar los datos (Friedman & Goldszmidt, 1996).
+El primer método consiste enuna discretización de todas las variables continuas, de modo que, estas variables ahora estarán representadas en un espacio discreto. Este cambio hace que pasemos de un modelo bayesiano gaussiano a un modelo bayesiano discreto. Diversos métodos han sido propuestos para elegir los puntos de corte, entre ellos estrategias simples (intervalos de igual amplitud o frecuencia) y enfoques más avanzados que incorporan la discretización dentro del propio proceso de aprendizaje de la red, buscando un equilibrio entre la complejidad del modelo y su capacidad de representar los datos (Friedman & Goldszmidt, 1996).
 
 Este procedimiento presenta ciertas limitaciones. En primer lugar, implica una pérdida de información, ya que se reducen valores continuos a categorías. Además, una discretización inadecuada puede llevar a modelos poco generalizables o que no reflejen adecuadamente las relaciones entre variables.
 
@@ -434,7 +434,7 @@ El segundo enfoque corresponde a las redes bayesianas gaussinas condicionales (C
 
 ### Implementación
 
-En la implementación con el paquete bnlearn en R nos encontramos con una limitacion importante. No es posible combinar variables categóricas y continuas en una misma red. Este nos exige que los datos sean homogéneos, es decir, que todas las variables sean discretas o que todas sean continuas. Esto impide la construcción de redes híbridas dentro de este entorno, incluso si se recodifican las variables categóricas. (Scutari, 2010) En el trabajo realizado se intentó incluir variables como el sexo y el estrato social en una red bayesiana gaussiana, pero el modelo rechazó estas variables al no cumplir con los supuestos previamente mencionaods.
+En la implementación con el paquete bnlearn en R nos encontramos con una limitación importante. No es posible combinar variables categóricas y continuas en una misma red. Este nos exige que los datos sean homogéneos, es decir, que todas las variables sean discretas o que todas sean continuas. Esto impide la construcción de redes híbridas dentro de este entorno, incluso si se recodifican las variables categóricas. (Scutari, 2010) En el trabajo realizado se intentó incluir variables como el sexo y el estrato social en una red bayesiana gaussiana, pero el modelo rechazó estas variables al no cumplir con los supuestos previamente mencionaods.
 
 # Aplicación
 
