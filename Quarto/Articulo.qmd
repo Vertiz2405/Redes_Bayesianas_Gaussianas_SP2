@@ -20,6 +20,16 @@ editor: source
 #| output: false
 library(readr)
 library(dplyr)
+library(tidyr)
+library(stringr)
+library(scales)
+library(ggplot2)
+library(tidyverse)
+library(readr)
+library(bnlearn)
+library(purrr)
+library(dplyr)
+library(mgcv)
 ```
 
 # Abstract
@@ -39,6 +49,37 @@ De esta manera, aplicar redes bayesianas gaussianas a la relación entre contami
 ## Limpieza de Datos
 
 ### Limpieza 1
+
+Durante la primera limpieza se integraron y depuraron las bases de datos originales de ENSANUT. Primero se cargaron los archivos de muestras biológicas y de datos sociodemográficos. 
+
+```{r}
+#| echo: false
+data_muestras <- read_delim("../data_ensanut/ensanut2022_muestras.csv", delim = ";", show_col_types = FALSE)
+head(data_muestras)
+```
+```{r}
+#| echo: false
+data_socdem <- suppressWarnings(
+  read_delim(
+    "../data_ensanut/ensanut2022_socdem.csv",
+    delim = ";",
+    show_col_types = FALSE
+  )
+)
+head(data_socdem)
+```
+
+
+Luego se revisaron los nombres de todas las variables y se identificaron aquellas que se repetían en ambos archivos. Para nuestro caso, la variable "FOLIO_INT" fue la que seleccionamos para unir ambos datasets.
+
+En estos casos se resolvieron las duplicaciones unificando la información: cuando una misma variable aparecía con dos sufijos diferentes (por ejemplo .x y .y), se consolidó en una sola columna, conservando los valores no nulos. Finalmente, se generó una nueva base integrada llamada datos.csv, que contiene la información de cada persona con sus indicadores de salud y características demográficas, sin redundancias ni columnas duplicadas.
+
+```{r}
+#| echo: false
+data <- read_delim("../data_ensanut/datos.csv", show_col_types = FALSE)
+head(data)
+```
+
 
 ### Limpieza 2
 
@@ -323,12 +364,14 @@ Ya teniendo nuestro dataframe final creamos las 3 DAGS.
 dag1 <- model2network("[NO][CO][SO][CT|NO:CO:SO][AC|NO:CO:SO:CT][HB|NO:SO][F|NO:CO:SO:HB][T|HB:AC:F][C|HB:AC:F][FO][H|NO:CO:SO:FO]")
 ```
 
-DAG 1:
+**DAG 1**:
 ```{r}
 #| echo: false
+#| message: false
+#| warning: false
 graphviz.plot(dag1, shape = "ellipse")
 ```
-DAG 2: 
+**DAG 2**: 
 ```{r}
 #| echo: false
 dag2 <- model2network("[NO][CO][SO][HB|NO:CO:SO][AC|NO:CO:SO][H|NO:CO:SO:FO][FO][F|CT][CT|NO:SO][T|HB:AC][C|HB:AC]")
@@ -340,7 +383,7 @@ dag2 <- model2network("[NO][CO][SO][HB|NO:CO:SO][AC|NO:CO:SO][H|NO:CO:SO:FO][FO]
 
 graphviz.plot(dag2, shape = "ellipse")
 ```
-
+**DAG 3**:
 ```{r}
 #| echo: false
 
@@ -353,7 +396,27 @@ dag3 <- model2network("[NO][CO][SO][H|NO:CO:SO:FO][FO][F|SO][CT|NO:CO:SO][AC|H:C
 graphviz.plot(dag3, shape = "ellipse")
 ```
 
-## Evaluación de las DAGs
+## Evaluación de DAGs
+
+A partir de la selección de variables continuas y siguiendo la propuesta de los expertos, se definieron tres estructuras candidatas de red bayesiana (DAG1, DAG2 y DAG3). Posteriormente, se evaluaron sus desempeños mediante criterios de información para distribuciones gaussianas: **BICg**, **AICg** y **BGe**, todos implementados en `bnlearn`.
+
+Los resultados obtenidos se resumen en la siguiente tabla:
+```{r}
+#| echo: false
+dags <- list(dag1 = dag1, dag2 = dag2, dag3 = dag3)
+
+tibble(
+  DAG = names(dags),
+  BICg = map_dbl(dags, ~ score(.x, data = data, type = "bic-g")),
+  AICg = map_dbl(dags, ~ score(.x, data = data, type = "aic-g")),
+  BGe  = map_dbl(dags, ~ score(.x, data = data, type = "bge"))
+)
+```
+
+De acuerdo con los resultados, **la DAG 3 presenta el mejor desempeño**, al obtener los valores más altos (menos negativos) tanto en BICg como en AICg, superando a las otras dos propuestas. Por ello, se selecciona la **DAG 3** como la estructura base para los análisis posteriores. El criterio **BGe** también se reporta como medida adicional de robustez, aportando una perspectiva bayesiana complementaria.
+
+Es decir, el mejor modelo relacional, dados los datos y la opinión de los expertos, sugiere que los contaminantes del aire (NO, CO y SO₂) impactan de manera directa marcadores metabólicos y renales clave: elevan homocisteína (H) y se asocian con mayor creatinina (CT); además, SO₂ también se vincula con ferritina (F) (reserva de hierro e inflamación). El folato (FO) actúa sobre homocisteína, consistente con su papel bioquímico en su metabolismo (posible efecto “protector”). A partir de ahí, H y CT determinan ácido úrico (AC), y en paralelo NO y SO₂ influyen directamente en el control glucémico crónico (HbA1c, HB). Finalmente, HB y AC son los padres de colesterol total (C) y triglicéridos (T), lo que indica que la disglucemia y el metabolismo de purinas (ácido úrico) median el camino entre la exposición a contaminantes y la dislipidemia/riesgo cardiometabólico. En conjunto, el DAG plantea una cadena plausible: contaminación → (homocisteína/función renal) → ácido úrico y HbA1c → lípidos, con folatos modulando el eje de homocisteína.
+
 
 ## Variables categóricas
 
@@ -371,9 +434,236 @@ El segundo enfoque corresponde a las redes bayesianas gaussinas condicionales (C
 
 ### Implementación
 
-En la implementación con el paquete bnlearn en R nos encontramos con una limitacion importante. No es posible combinar variables categóricas y continuas en una misma red. Este nos exige que los datos sean homogéneos, es decir, que todas las variables sean discretas o que todas sean continuas. Esto impide la construcción de redes híbridas dentro de este entorno, incluso si se recodifican las variables categóricas. En el trabajo realizado se intentó incluir variables como el sexo y el estrato social en una red bayesiana gaussiana, pero el modelo rechazó estas variables al no cumplir con los supuestos previamente mencionaods.
+En la implementación con el paquete bnlearn en R nos encontramos con una limitacion importante. No es posible combinar variables categóricas y continuas en una misma red. Este nos exige que los datos sean homogéneos, es decir, que todas las variables sean discretas o que todas sean continuas. Esto impide la construcción de redes híbridas dentro de este entorno, incluso si se recodifican las variables categóricas. (Scutari, 2010) En el trabajo realizado se intentó incluir variables como el sexo y el estrato social en una red bayesiana gaussiana, pero el modelo rechazó estas variables al no cumplir con los supuestos previamente mencionaods.
 
 # Aplicación
+
+En esta sección usamos la DAG seleccionada para responder preguntas clínicas y químicas con probabilidades condicionadas. Para cada pregunta definimos un evento de interés (p.ej., “colesterol o triglicéridos altos”) y comparamos su probabilidad en la población general (línea base) contra su probabilidad cuando un contaminante está alto (percentil 90). Reportamos:
+	•	Prob.: \Pr(\text{evento}\mid \text{evidencia}).
+	•	Δ (p.p.): diferencia en puntos porcentuales vs. la línea base.
+	•	Lift: razón \Pr(\text{evento}\mid \text{evidencia}) / \Pr(\text{evento}). Un lift > 1 indica mayor riesgo asociado al contaminante elevado.
+
+Los umbrales (percentiles) se definieron al inicio de esta sección y las probabilidades se estimaron con muestreo por importancia (cp_dist, método “ls”) sobre el modelo ajustado. (Koller & Friedman, 2009)
+
+Aunque bnlearn ofrece cpquery() para calcular \Pr(\text{evento}\mid \text{evidencia}), en redes continuas/gaussianas su evaluación interna del evento y la evidencia puede exigir vectores lógicos estrictos y fallar según la versión o la forma de las expresiones. (Scutari, 2017) Por robustez usamos un estimador por muestreo condicional con cpdist() (logic sampling) y rechazo de muestras que no cumplen la evidencia. Implementado en el helper p_rs(), esto equivale a estimar la probabilidad condicional como el promedio de la condición del evento en las muestras que satisfacen la evidencia.(Neapolitan, 2004)
+
+Ventajas: (i) funciona de forma estable con variables continuas y umbrales, (ii) permite escribir eventos/evidencias complejos con quote(...) sin pelear con coerciones internas, y (iii) mantiene la misma interpretación probabilística que cpquery. Para controlar la variabilidad Monte Carlo usamos un número grande de simulaciones (n, típicamente 10^5–5\times10^5) y fijamos semilla (set.seed) para reproducibilidad.(Robert & Casella, 2004)
+
+
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+data_g <- as.data.frame(data)
+fit <- bn.fit(dag3, data = data_g, method = "mle-g")
+
+# Raíces
+mod_NO <- lm(NO ~ 1, data = data_g)
+mod_CO <- lm(CO ~ 1, data = data_g)
+mod_SO <- lm(SO ~ 1, data = data_g)
+mod_FO <- lm(FO ~ 1, data = data_g)
+
+# GAM (nodos con padres)
+mod_gam_H  <- gam(H  ~ s(NO) + s(CO) + s(SO) + s(FO), data = data_g, method = "REML")
+mod_gam_F  <- gam(F  ~ s(SO),                        data = data_g, method = "REML")
+mod_gam_CT <- gam(CT ~ s(NO) + s(CO) + s(SO),        data = data_g, method = "REML")
+mod_gam_AC <- gam(AC ~ s(H)  + s(CT),                data = data_g, method = "REML")
+mod_gam_HB <- gam(HB ~ s(NO) + s(SO),                data = data_g, method = "REML")
+mod_gam_T  <- gam(T  ~ s(HB) + s(AC),                data = data_g, method = "REML")
+mod_gam_C  <- gam(C  ~ s(HB) + s(AC),                data = data_g, method = "REML")
+
+# LM (referencia lineal)
+mod_lm_H  <- lm(H  ~ NO + CO + SO + FO, data = data_g)
+mod_lm_F  <- lm(F  ~ SO,                data = data_g)
+mod_lm_CT <- lm(CT ~ NO + CO + SO,      data = data_g)
+mod_lm_AC <- lm(AC ~ H  + CT,           data = data_g)
+mod_lm_HB <- lm(HB ~ NO + SO,           data = data_g)
+mod_lm_T  <- lm(T  ~ HB + AC,           data = data_g)
+mod_lm_C  <- lm(C  ~ HB + AC,           data = data_g)
+
+aic_comp <- data.frame(
+  nodo   = c("H","F","CT","AC","HB","T","C"),
+  AIC_GAM= c(AIC(mod_gam_H), AIC(mod_gam_F), AIC(mod_gam_CT),
+             AIC(mod_gam_AC), AIC(mod_gam_HB), AIC(mod_gam_T), AIC(mod_gam_C)),
+  AIC_LM = c(AIC(mod_lm_H),  AIC(mod_lm_F),  AIC(mod_lm_CT),
+             AIC(mod_lm_AC), AIC(mod_lm_HB),  AIC(mod_lm_T),  AIC(mod_lm_C))
+)
+aic_comp$mejor <- ifelse(aic_comp$AIC_GAM < "AIC_LM", "GAM", "LM")
+
+set.seed(42) 
+
+thrNO <- as.numeric(quantile(data$NO, .90))
+thrCO <- as.numeric(quantile(data$CO, .90))
+thrSO <- as.numeric(quantile(data$SO, .90))
+thrC  <- as.numeric(quantile(data$C,  .75))
+thrT  <- as.numeric(quantile(data$T,  .75))
+thrHB <- as.numeric(quantile(data$HB, .75))
+thrCT <- as.numeric(quantile(data$CT, .75))
+thrF  <- as.numeric(quantile(data$F,  .75))
+thrH  <- as.numeric(quantile(data$H,  .75))
+
+# Probabilidad P( evento | evidencia ) por muestreo y filtrado
+p_rs <- function(event_expr, evidence_expr, n = 2e5) {
+  samp <- as.data.frame(rbn(fit, n = n))
+  ok   <- eval(evidence_expr, envir = samp)
+  if (!any(ok)) return(NA_real_)
+  mean(eval(event_expr, envir = samp[ok, , drop = FALSE]))
+}
+
+p_dislip_NO <- p_rs( quote((C > thrC) | (T > thrT)), quote(NO > thrNO) )
+p_dislip_CO <- p_rs( quote((C > thrC) | (T > thrT)), quote(CO > thrCO) )
+p_dislip_SO <- p_rs( quote((C > thrC) | (T > thrT)), quote(SO > thrSO) )
+base_dislip <- p_rs( quote((C > thrC) | (T > thrT)), quote(TRUE) )
+
+p_dm_NO <- p_rs( quote(HB > thrHB), quote(NO > thrNO) )
+p_dm_CO <- p_rs( quote(HB > thrHB), quote(CO > thrCO) )
+p_dm_SO <- p_rs( quote(HB > thrHB), quote(SO > thrSO) )
+base_dm <- p_rs( quote(HB > thrHB), quote(TRUE) )
+
+
+p_ckd_NO <- p_rs( quote(CT > thrCT), quote(NO > thrNO) )
+p_ckd_CO <- p_rs( quote(CT > thrCT), quote(CO > thrCO) )
+p_ckd_SO <- p_rs( quote(CT > thrCT), quote(SO > thrSO) )
+base_ckd <- p_rs( quote(CT > thrCT), quote(TRUE) )
+
+
+# Componente nutricional
+p_ferr_NO <- p_rs( quote(F  > thrF),                           quote(NO > thrNO) )
+p_ferr_SO <- p_rs( quote(F  > thrF),                           quote(SO > thrSO) )
+p_fol_NO  <- p_rs( quote(FO < median(data_g$FO, na.rm = TRUE)), quote(NO > thrNO) )
+p_fol_SO  <- p_rs( quote(FO < median(data_g$FO, na.rm = TRUE)), quote(SO > thrSO) )
+
+# Proxy de riesgo metabólico compuesto: H, F, C, T, HB (y puedes incluir CT si quieres)
+p_cv_NO <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
+                 quote( NO > thrNO ) )
+p_cv_CO <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
+                 quote( CO > thrCO ) )
+p_cv_SO <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
+                 quote( SO > thrSO ) )
+base_cv <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
+                 quote(TRUE) )
+
+# ---- 2) Helpers para formateo y construcción de tablas de resultados ----
+
+
+fmt_pct <- percent_format(accuracy = 0.1)
+
+summarize_query <- function(p_no, p_co, p_so, p_base, query_label){
+  tibble(
+    Contaminante = c("NO alto (p90)", "CO alto (p90)", "SO₂ alto (p90)", "Base (sin evidencia)"),
+    Prob         = c(p_no, p_co, p_so, p_base),
+    Base         = p_base
+  ) |>
+    mutate(
+      Delta_pp = (Prob - Base) * 100,     # diferencia en puntos porcentuales
+      Lift     = Prob / Base
+    ) |>
+    mutate(
+      Prob  = fmt_pct(Prob),
+      Base  = fmt_pct(Base),
+      `Δ (p.p.)` = sprintf("%.1f", Delta_pp),
+      Lift  = sprintf("%.2f", Lift)
+    ) |>
+    select(Contaminante, Prob, Base, `Δ (p.p.)`, Lift) |>
+    mutate(Query = query_label, .before = 1)
+}
+```
+
+### Query 1: Dislipidemia (colesterol o triglicéridos altos)
+
+¿Cuando aumentan los niveles de contaminantes (NO, CO, SO), se incrementa la probabilidad de observar colesterol o triglicéridos elevados?
+
+En esta consulta se estima la probabilidad de presentar colesterol total o triglicéridos elevados cuando los niveles de contaminantes (NO, CO, SO₂) están altos, comparándola con la probabilidad base sin evidencia.
+
+```{r}
+#| echo: false
+### Q1: Dislipidemia (C o T altos)
+tab_q1 <- summarize_query(p_dislip_NO, p_dislip_CO, p_dislip_SO, base_dislip,
+                          "Q1: Dislipidemia (C o T altos)")
+
+tab_q1
+
+```
+
+
+### Query 2: HbA1c alta (diabetes / resistencia a la insulina)
+
+¿Cuando aumentan los niveles de contaminantes (NO, CO, SO), se incrementa la probabilidad de observar HbA1c elevada?
+
+En esta consulta se evalúa la probabilidad de que la hemoglobina glucosilada (HbA1c) esté por encima del umbral (indicador de diabetes o resistencia a la insulina) cuando los contaminantes NO, CO o SO₂ son altos, comparado con la probabilidad base.
+
+```{r}
+#| echo: false
+# Q2: HbA1c alta (diabetes/resistencia)
+tab_q2 <- summarize_query(p_dm_NO, p_dm_CO, p_dm_SO, base_dm,
+                          "Q2: HbA1c alta (diabetes/resistencia)")
+
+tab_q2
+```
+
+### Query 3: Creatinina alta (función renal)
+
+¿Cuando aumentan los niveles de contaminantes (NO, CO, SO), se incrementa la probabilidad de observar creatinina elevada?
+
+Aquí se estima la probabilidad de que la creatinina se encuentre elevada (marcador de alteración en la función renal) cuando los contaminantes están altos, en comparación con la probabilidad base.
+
+```{r}
+#| echo: false
+# Q3: Creatinina alta (función renal)
+tab_q3 <- summarize_query(p_ckd_NO, p_ckd_CO, p_ckd_SO, base_ckd,
+                          "Q3: Creatinina alta (función renal)")
+
+tab_q3
+
+```
+
+
+### Query 4: Riesgo metabólico compuesto
+
+
+¿Niveles altos de contaminantes (NO, CO, SO) se asocian con ferritina o folatos anormales y mayor riesgo cardiovascular (C, T, HB, CT, H)?
+
+En este caso se agrupan varios marcadores (colesterol, triglicéridos, HbA1c, homocisteína y ferritina) para evaluar un riesgo metabólico compuesto. Se compara la probabilidad de alteraciones cuando los contaminantes están altos contra la base.
+
+```{r}
+#| echo: false
+# Q4: Riesgo metabólico compuesto
+tab_q4_cv <- summarize_query(p_cv_NO, p_cv_CO, p_cv_SO, base_cv,
+                          "Q4: Riesgo metabólico compuesto")
+
+tab_q4_cv
+```
+
+
+### Query 4 (opcional): Componente nutricional
+
+También se explora la relación entre contaminantes y biomarcadores nutricionales: ferritina (almacenamiento de hierro) y folatos (asociados a metabolismo de homocisteína).
+
+```{r}
+#| echo: false
+# (Opcional) Q4 componente nutricional (ferritina/folatos)
+tab_q4_nutr <- tibble(
+  Indicador     = c("Ferritina alta | NO alto", "Ferritina alta | SO₂ alto",
+                    "Folatos bajos | NO alto",  "Folatos bajos | SO₂ alto"),
+  Probabilidad  = fmt_pct(c(p_ferr_NO, p_ferr_SO, p_fol_NO, p_fol_SO))
+)
+
+tab_q4_nutr
+
+```
+
+
+### Resumen combinado de queries
+
+Finalmente, se integran los resultados de todas las consultas en una tabla resumen para facilitar su interpretación.
+
+```{r}
+#| echo: false
+# ---- Resumen combinado ----
+tab_resumen <- bind_rows(tab_q1, tab_q2, tab_q3, tab_q4_cv)
+tab_resumen
+```
 
 # Conclusiones
 
@@ -391,3 +681,10 @@ Friedman, N., & Goldszmidt, M. (1996). Discretizing Continuous Attributes While 
 
 Lauritzen, S. L., & Wermuth, N. (1989). Graphical models for associations between variables, some of which are qualitative and some quantitative. The Annals of Statistics.
 
+Neapolitan, R. E. (2004). Learning Bayesian Networks. Pearson Prentice Hall.
+
+Robert, C. P., & Casella, G. (2004). Monte Carlo Statistical Methods (2nd ed.). Springer.
+
+Scutari, M. (2010). Learning Bayesian Networks with the bnlearn R Package. Journal of Statistical Software, 35(3), 1–22. https://doi.org/10.18637/jss.v035.i03
+
+Scutari, M. (2017). Bayesian Network Models of Discrete and Continuous Data. British Journal of Mathematical and Statistical Psychology, 70(2), 272–291. https://doi.org/10.1111/bmsp.12073
