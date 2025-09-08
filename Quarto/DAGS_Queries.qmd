@@ -27,6 +27,7 @@ library(mgcv)
 ```
 
 ## 2. Carga de datos
+
 ```{r}
 data <- read_csv("../data_ensanut/datos2.csv", show_col_types = FALSE)
 head(data)
@@ -46,15 +47,15 @@ datos_buenos <- data[, vars_usar]
 head(datos_buenos)
 ```
 
-
 #### Eliminar NA para este análisis (gaussiano no admite NA)
+
 ```{r}
 datos_ <- na.omit(datos_buenos)
 colSums(is.na(datos_))
 ```
 
-
 #### Renombrado corto
+
 ```{r}
 colnames(datos_) <- c(
   "E","M","ES","S","C19","NO","CO","SO","MN","C","T","F","FO","H","CT","AC","HB"
@@ -62,11 +63,10 @@ colnames(datos_) <- c(
 head(datos_)
 ```
 
-
-
 ### 3.1 Estándar Covid y numérico en CT
 
-#### Estandarizar C19: 1-4 -> 1 (sí), 98-99 -> 0 (no)
+#### Estandarizar C19: 1-4 -\> 1 (sí), 98-99 -\> 0 (no)
+
 ```{r}
 datos_ <- datos_ %>%
   mutate(C19 = case_when(
@@ -76,8 +76,8 @@ datos_ <- datos_ %>%
 unique(datos_$C19)
 ```
 
-
 #### Convertir CT que viene con coma decimal
+
 ```{r}
 datos_ <- datos_ %>%
   mutate(CT = as.numeric(str_replace(CT, ",", "\\.")))
@@ -88,6 +88,7 @@ head(datos_)
 ### 3.2 Dataset continuo para GBN
 
 #### Quitamos categóricas (se usarán después en sección aparte)
+
 ```{r}
 data <- datos_ |>
   select(-E, -M, -C19, -MN, -ES, -S)
@@ -95,7 +96,6 @@ data <- datos_ |>
 head(data)
 colnames(data)
 ```
-
 
 ## 4. DAGs propuestas por expertos
 
@@ -108,7 +108,6 @@ graphviz.plot(dag1, shape = "ellipse")
 graphviz.plot(dag2, shape = "ellipse")
 graphviz.plot(dag3, shape = "ellipse")
 ```
-
 
 ## 5. Comparación de estructuras (BICg, AICg, BGe)
 
@@ -123,7 +122,6 @@ tibble(
 )
 ```
 
-
 Conclusión: la DAG3 obtiene los mejores (menos negativos) puntajes en BICg/AICg y es la seleccionada.
 
 ## 6. Ajuste gaussiano de la DAG seleccionada
@@ -133,7 +131,6 @@ data_g <- as.data.frame(data)
 fit <- bn.fit(dag3, data = data_g, method = "mle-g")
 fit
 ```
-
 
 ## 7. Modelos paramétricos por nodo (coherentes con DAG3)
 
@@ -175,9 +172,6 @@ aic_comp$mejor <- ifelse(aic_comp$AIC_GAM < "AIC_LM", "GAM", "LM")
 aic_comp
 ```
 
-
-Nota: Si te marca objeto no encontrado en aIC_LM es por typo; debe ser AIC_LM en mayúsculas.
-
 ## 8. Queries principales (probabilidades condicionadas)
 
 ```{r}
@@ -195,15 +189,17 @@ thrCT <- as.numeric(quantile(data$CT, .75))
 thrF  <- as.numeric(quantile(data$F,  .75))
 thrH  <- as.numeric(quantile(data$H,  .75))
 
+rm(list = c("p_cp"))   # borra versiones previas del helper
+class(fit) 
+
 # Probabilidad P( evento | evidencia ) por muestreo y filtrado
 p_rs <- function(event_expr, evidence_expr, n = 2e5) {
-  samp <- as.data.frame(rbn(fit, n = n))  # simula desde la BN
+  samp <- as.data.frame(rbn(fit, n = n))
   ok   <- eval(evidence_expr, envir = samp)
   if (!any(ok)) return(NA_real_)
   mean(eval(event_expr, envir = samp[ok, , drop = FALSE]))
 }
 ```
-
 
 ### 8.1 Query 1: Contaminación y dislipidemia
 
@@ -219,7 +215,6 @@ base_dislip <- p_rs( quote((C > thrC) | (T > thrT)), quote(TRUE) )
 c(NO = p_dislip_NO, CO = p_dislip_CO, SO = p_dislip_SO, Base = base_dislip)
 ```
 
-
 ### 8.2 Query 2: Contaminación y diabetes
 
 ¿Cuando aumentan los niveles de contaminantes (NO, CO, SO), se incrementa la probabilidad de observar HbA1c elevada?
@@ -232,7 +227,6 @@ base_dm <- p_rs( quote(HB > thrHB), quote(TRUE) )
 
 c(NO = p_dm_NO, CO = p_dm_CO, SO = p_dm_SO, Base = base_dm)
 ```
-
 
 ### 8.3 Query 3: Contaminación y función renal
 
@@ -247,7 +241,6 @@ base_ckd <- p_rs( quote(CT > thrCT), quote(TRUE) )
 c(NO = p_ckd_NO, CO = p_ckd_CO, SO = p_ckd_SO, Base = base_ckd)
 ```
 
-
 ### 8.4 Query 4: Contaminación, ferritina/folatos y riesgo metabólico
 
 ¿Niveles altos de contaminantes (NO, CO, SO) se asocian con ferritina o folatos anormales y mayor riesgo cardiovascular (C, T, HB, CT, H)?
@@ -259,42 +252,25 @@ p_ferr_SO <- p_rs( quote(F  > thrF),                           quote(SO > thrSO)
 p_fol_NO  <- p_rs( quote(FO < median(data_g$FO, na.rm = TRUE)), quote(NO > thrNO) )
 p_fol_SO  <- p_rs( quote(FO < median(data_g$FO, na.rm = TRUE)), quote(SO > thrSO) )
 
-# Proxy de riesgo metabólico compuesto: H, F, C, T, HB (y puedes incluir CT si quieres)
-p_cv_NO <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
-                 quote( NO > thrNO ) )
-p_cv_CO <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
-                 quote( CO > thrCO ) )
-p_cv_SO <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
-                 quote( SO > thrSO ) )
-base_cv <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
+# Proxy de riesgo metabólico compuesto (H, F, C, T, HB)
+p_cv_NO <- p_rs( quote((H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB)),
+                 quote(NO > thrNO) )
+p_cv_CO <- p_rs( quote((H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB)),
+                 quote(CO > thrCO) )
+p_cv_SO <- p_rs( quote((H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB)),
+                 quote(SO > thrSO) )
+base_cv <- p_rs( quote((H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB)),
                  quote(TRUE) )
 
 c(Ferr_NO = p_ferr_NO, Ferr_SO = p_ferr_SO, Fol_NO = p_fol_NO, Fol_SO = p_fol_SO,
-  CV_NO = p_cv_NO, CV_CO = p_cv_CO, CV_SO = p_cv_SO, Base = base_cv)
+  CV_NO = p_cv_NO,  CV_CO = p_cv_CO,  CV_SO = p_cv_SO,  Base = base_cv)
 ```
 
+## 9. Conclusiones
 
-## 9. Exploración con variables categóricas
-
-```{r}
-data_cat <- datos_ |>
-  select(-E, -M, -C19, -MN)
-
-# Si ES y S ya vienen en datos_, quitar el muestreo ficticio.
-data_cat$ES <- as.factor(data_cat$ES)
-data_cat$S  <- as.factor(data_cat$S)
-
-str(data_cat)
-
-dag_cat <- model2network("[S][ES][NO][CO][SO][H|NO:CO:SO:FO:ES:S][FO][F|SO][CT|NO:CO:SO][AC|H:CT][HB|NO:SO][T|HB:AC][C|HB:AC:ES:S]")
-graphviz.plot(dag_cat, shape = "ellipse")
-# Ajuste mixto (si hay factores + continuas):
-# fit_cat <- bn.fit(dag_cat, data = data_cat, method = "mle-cg")
+```         
+•   DAG3 resultó la mejor por BICg/AICg/BGe.
+•   El ajuste gaussiano (bn.fit con mle-g) es coherente con que todas las variables son numéricas.
+•   Los queries 1–4 responden a lo planteado por expertos con variables disponibles.
+•   Temas sin variables (demencia, cáncer, homocisteína, albúmina) se dejan fuera por ahora o para trabajo futuro.
 ```
-
-
-## 10. Conclusiones
-	•	DAG3 resultó la mejor por BICg/AICg/BGe.
-	•	El ajuste gaussiano (bn.fit con mle-g) es coherente con que todas las variables son numéricas.
-	•	Los queries 1–4 responden a lo planteado por expertos con variables disponibles.
-	•	Temas sin variables (demencia, cáncer, homocisteína, albúmina) se dejan fuera por ahora o para trabajo futuro.

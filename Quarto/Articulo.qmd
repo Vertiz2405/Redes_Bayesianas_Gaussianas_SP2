@@ -20,11 +20,29 @@ editor: source
 #| output: false
 library(readr)
 library(dplyr)
+library(tidyr)
+library(stringr)
+library(scales)
+library(ggplot2)
+library(tidyverse)
+library(readr)
+library(bnlearn)
+library(purrr)
+library(dplyr)
+library(mgcv)
 ```
 
 # Abstract
 
 # Introducción
+
+La calidad del aire en México constituye uno de los principales retos de salud pública, ya que la exposición crónica a contaminantes como dióxido de azufre (SO₂), óxidos de nitrógeno (NOx) y monóxido de carbono (CO) se ha vinculado con un aumento en enfermedades cardiovasculares, respiratorias y metabólicas (Secretaría de Salud, 2022; World Health Organization \[WHO\], 2021). Estos contaminantes pueden alterar biomarcadores clave, como la hemoglobina glucosilada, los lípidos en sangre o la función renal, lo que los convierte en variables fundamentales para estudiar la relación entre ambiente y salud.
+
+El objetivo de este trabajo es implementar un modelo probabilístico que ayude a comprender cómo los factores ambientales influyen en la salud de la población mexicana, con el fin de ofrecer insumos para políticas públicas y estrategias de prevención. Dicho modelo busca integrar información sobre contaminantes atmosféricos y biomarcadores clínicos, permitiendo visualizar relaciones causales y dependencias condicionales que no siempre son evidentes con enfoques estadísticos tradicionales.
+
+En este contexto, las redes bayesianas gaussianas (RBG) ofrecen una herramienta poderosa, pues permiten representar la estructura de dependencias entre variables continuas bajo supuestos de normalidad multivariada. Cada nodo de la red representa una variable, y las aristas describen relaciones de dependencia probabilística. Esto facilita la estimación de probabilidades conjuntas y condicionales, incluso en presencia de datos incompletos, así como la simulación de escenarios hipotéticos (Koller & Friedman, 2009). Su importancia radica en que integran el conocimiento experto con los datos empíricos, generando modelos interpretables que apoyan la toma de decisiones en salud pública y políticas ambientales (Pearl, 2009).
+
+De esta manera, aplicar redes bayesianas gaussianas a la relación entre contaminación y salud en México no solo permite identificar qué contaminantes afectan más a ciertos biomarcadores, sino también diseñar intervenciones más focalizadas, orientadas a la prevención y al cuidado integral de la población. \# Metodología
 
 # Metodología
 
@@ -32,11 +50,43 @@ library(dplyr)
 
 ### Limpieza 1
 
+Durante la primera limpieza se integraron y depuraron las bases de datos originales de ENSANUT. Primero se cargaron los archivos de muestras biológicas y de datos sociodemográficos. 
+
+```{r}
+#| echo: false
+data_muestras <- read_delim("../data_ensanut/ensanut2022_muestras.csv", delim = ";", show_col_types = FALSE)
+head(data_muestras)
+```
+```{r}
+#| echo: false
+data_socdem <- suppressWarnings(
+  read_delim(
+    "../data_ensanut/ensanut2022_socdem.csv",
+    delim = ";",
+    show_col_types = FALSE
+  )
+)
+head(data_socdem)
+```
+
+
+Luego se revisaron los nombres de todas las variables y se identificaron aquellas que se repetían en ambos archivos. Para nuestro caso, la variable "FOLIO_INT" fue la que seleccionamos para unir ambos datasets.
+
+En estos casos se resolvieron las duplicaciones unificando la información: cuando una misma variable aparecía con dos sufijos diferentes (por ejemplo .x y .y), se consolidó en una sola columna, conservando los valores no nulos. Finalmente, se generó una nueva base integrada llamada datos.csv, que contiene la información de cada persona con sus indicadores de salud y características demográficas, sin redundancias ni columnas duplicadas.
+
+```{r}
+#| echo: false
+data <- read_delim("../data_ensanut/datos.csv", show_col_types = FALSE)
+head(data)
+```
+
+
 ### Limpieza 2
 
-El objetivo de la segunda limpieza es incluir los datos de calidad de aire, recolectados por SEMARNAT en el 2025, con la información previamente del ENSANUT acerca de estudios de sangre de personas y sus respectivos datos demograficos. Asumiremos que esta informacion son buenas estimaciones para los contaminantes del 2022. 
+El objetivo de la segunda limpieza es incluir los datos de calidad de aire, recolectados por SEMARNAT en el 2025, con la información previamente del ENSANUT acerca de estudios de sangre de personas y sus respectivos datos demográficos. Asumiremos que esta información son estimaciones adecuadas para los contaminantes del 2022.
 
 Los datos con los que contamos en calidad de aire son los siguientes (las 5 observaciones son ejemplo):
+
 ```{r}
 #| echo: false
 data_aire <- read.csv("../data_ensanut/calidad_aire_2025.csv")
@@ -49,7 +99,8 @@ head(data_aire)
 datos2 <- read.csv("../data_ensanut/datos.csv")
 ```
 
-Lo primero que hicimos fue determinar un tipo de fuente de datos, debido a la magnitud de estos nos quedamos solo con los datos provenientes de fuentes fijas. Tambien quitamos la columan llamada "Entidad", ya que incluye la misma informacion que la columna llamada "Entidad_federativa". La tabla actualizada la vemos de la siguiente manera:
+Lo primero que hicimos fue determinar un tipo de fuente de datos, debido a la magnitud de estos, nos quedamos solo con los datos provenientes de fuentes fijas. También quitamos la columna llamada "Entidad", ya que incluye la misma información que la columna llamada "Entidad_federativa". La tabla actualizada la vemos de la siguiente manera:
+
 ```{r}
 #| echo: false
 data_aire <- data_aire[data_aire$Tipo_de_Fuente == "Fuentes fijas", ]
@@ -69,6 +120,7 @@ data_aire
 #| echo: false
 #| output: false
 data_aire$Entidad_federativa <- toupper(data_aire$Entidad_federativa)
+data_aire$Municipio <- toupper(data_aire$Municipio)
 ```
 
 ```{r}
@@ -83,33 +135,33 @@ datos2$desc_ent <- substring(datos2$desc_ent, 4)
 datos2$desc_mun <- substring(datos2$desc_mun, 5)
 ```
 
-El siguiente paso fue verificar el nombre de entidad y municipuo de los 2 data frames, esto con el objetivo de ver como relacionar ambas tablas y poder unificar la informacion. En el caso de la tabla aire algunos ejemplos de entidades federativas y municipios son los siguientes:
+El siguiente paso fue verificar el nombre de entidad y municipio de los 2 data frames, esto con el objetivo de ver cómo relacionar ambas tablas y poder unificar la información. En el caso de la tabla aire algunos ejemplos de entidades federativas y municipios son los siguientes:
 
- - Aguascalientes
- - Baja California
- - Asientos
- - Pabellón de Arteaga
- 
- Mientras que esta misma información, en la tabla referente a la informacion del ensanut la visualizamos de la siguiente manera:
- 
-- 01 AGUASCALIENTES
-- 02 BAJA CALIFORNIA
-- 002 ASIENTOS
-- 006 PABELLÓN DE ARTEAGA
+-   Aguascalientes
+-   Baja California
+-   Asientos
+-   Pabellón de Arteaga
 
-Con esta informacion decidimos que al primer grupo de datos (semarnat), tanto a las entidades y municipios las hariamos todas mayuscula. Mientras que en el segundo grupo de datos (ensanut), eliminariamos los numeros y el primer espacio. Con estos cambios ambas tablas tendrian el mismo formato para sus entidades y muncipios.
+Mientras que esta misma información, en la tabla referente a la informacion del ensanut la visualizamos de la siguiente manera:
 
-Una vez realizado estos cambios realizamos un antijoin entre ambas tablas, esto con la intencion de conocer que elementos seguian sin coincidir. En el caso de las entidades no coincidian 3, para los datos acerca del aire son los siguientes:
+-   01 AGUASCALIENTES
+-   02 BAJA CALIFORNIA
+-   002 ASIENTOS
+-   006 PABELLÓN DE ARTEAGA
 
-- COAHUILA				
-- MICHOACÁN				
-- VERACRUZ
+Con esta información decidimos que al primer grupo de datos (SEMARNAT), tanto a las entidades y municipios las pasaríamos a un formato en mayúsculas únicamente. Mientras que en el segundo grupo de datos (ENSANUT), eliminaríamos los números y el primer espacio. Con estos cambios ambas tablas tendrían el mismo formato para sus entidades y muncipios.
 
-Mientras que en el conjunto de datos del ensanut aparecian de la siguiente manera:
+Una vez realizado estos cambios realizamos un antijoin entre ambas tablas, esto con la intención de conocer qué elementos seguían sin coincidir. En el caso de las entidades no coincidían 3, para los datos acerca del aire son los siguientes:
 
-- COAHUILA DE ZARAGOZA				
-- MICHOACÁN DE OCAMPO				
-- VERACRUZ DE IGNACIO DE LA LLAVE	
+-   COAHUILA\
+-   MICHOACÁN\
+-   VERACRUZ
+
+Mientras que en el conjunto de datos del ENSANUT aparecían de la siguiente manera:
+
+-   COAHUILA DE ZARAGOZA\
+-   MICHOACÁN DE OCAMPO\
+-   VERACRUZ DE IGNACIO DE LA LLAVE
 
 ```{r}
 #| echo: false
@@ -125,11 +177,12 @@ datos2 <- datos2 %>%
   )
 ```
 
-Como se puede leer, estos son exactamente los mismos estados pero pequelas variaciones en los nombres. Debido a esto, modificamos el segundo conjutno de datos para que coincidiera con el primero
+Como se puede leer, estos son exactamente los mismos estados pero pequeñas variaciones en los nombres. Debido a esto, modificamos el segundo conjunto de datos para que coincidiera con el primero
 
-En el caso del los municipios, cuando realizamos un autojoin para conocer aquellas que no coincidian. Nos percatamos que no era por variaciones en los nombes, si no porque informacion de un municipio en cierta tabla, no se encontraba presente en la otra, esto sucedia en ambas direcciones. En este caso no realizamos ninguna modificacion. 
+En el caso del los municipios, cuando realizamos un autojoin para conocer aquellas que no coincidía, nos percatamos que no era por variaciones en los nombres, si no porque información de un municipio en cierta tabla, no se encontraba presente en la otra, esto sucedía en ambas direcciones. En este caso no realizamos ninguna modificación.
 
-Una vez realizados estos cambias ya podiamos realizar un inner join, para poder contar en una misma con todos los datos. Esta union la podemos visualizar en la siguiente tabla: 
+Una vez realizados estos cambios ya se pudo realizar un inner join, para poder contar en una misma con todos los datos. Esta unión la podemos visualizar en la siguiente tabla:
+
 ```{r}
 #| echo: false
 #| output: false
@@ -140,21 +193,498 @@ resultado <- inner_join(datos2, data_aire, by = c("desc_ent" = "Entidad_federati
 #| echo: false
 head(resultado)
 ```
-- 
-# Metodología
 
-## Expertos quimicos
+## Expertos químicos
+
+Al tener nuestras bases de datos listas para usarse, el siguiente paso fue el comunicar nuestro objetivo y buscar la ayuda de expertos químicos. Los expertos contactados fueron: el Dr. Alberto Sánchez Estrada, ingeniero agrónomo en sistemas de producción agrícola, maestría en fruticultura y doctorado en agricultura protegida. Cuenta con gran conocimiento de el efecto de estos contaminantes en el aire; la Mtra. Judith Fortiz Hernández, ingeniera agroindustrial y maestra en ciencias agrícolas, su enfoque fue parecido al del Dr. Alberto; y por último contamos con la opinión de un experto en salud, el Dr. Víctor Zepeda Fortiz, licenciado en medicina. Para poder empezar el proceso, se desecharon las variables que no irrelevantes para el estudio, solo dejando todos los contaminantes y todos los resultados de las pruebas de salud, en estos no desechamos ninguna hasta obtener las opiniones de los expertos, junto con las variables esenciales sociodemográficas. Se colocaron en un archivo listo para que los expertos pudieran elegir las que creyeran más convenientes y pasar a la proposición de DAGs.
+
+El Dr. Alberto propuso enfocarse en evaluar cómo la exposición a contaminantes atmosféricos se relaciona con biomarcadores sanguíneos y diferencias demográficas. En particular, sugiere:
+
+(i) analizar si el amoníaco modula la proteína C reactiva (PCR) mediado por el perfil lipídico (colesterol y triglicéridos);
+
+(ii) estudiar la asociación de NOx y compuestos orgánicos volátiles con los niveles de ferritina considerando estrato social, edad, sexo y residencia;
+
+(iii) vincular sulfatos, amoníaco y óxidos nitrosos/volátiles con folatos, con especial atención a mujeres gestantes y resultados al nacer;
+
+(iv) relacionar CO₂ con albúmina y su posible interacción con colesterol y el estado nutricional; y
+
+(v) examinar homocisteína en sinergia con albúmina ante exposición a CO₂, nitritos, amonio y sulfatos, explorando además la sensibilidad por edad y diferencias por sexo.
+
+El Dr. Victor propone centrar el análisis en la relación entre contaminación del aire y salud mediante biomarcadores clave y patrones de uso de servicios de salud. En particular, sugiere:
+
+(i) priorizar la proteína C reactiva (PCR) como biomarcador principal y compararla frente a distintos contaminantes —con énfasis en PM2.5—, además de estratificar por variables sociodemográficas (entidad, edad, sexo, antecedente de COVID-19, zona de trabajo y estrato);
+
+(ii) evaluar asociaciones específicas de contaminantes con enfermedades respiratorias, cardiovasculares y metabólicas;
+
+(iii) explorar si vitaminas (B12 y folatos) modulan la necesidad de consulta médica;
+
+(iv) formular preguntas guía sobre la relación entre niveles de contaminantes y elevación de PCR; y
+
+(v) analizar qué contaminantes se vinculan más con enfermedades crónicas.
+
+La Mtra. Judith remitió un listado estructurado de variables para el análisis de contaminación y salud. En particular, especifica:
+
+(i) **estratificadores sociodemográficos**: entidad, municipio, sexo, edad, estrato, zona de trabajo y antecedentes (necesidad de atención médica en 3 meses y haber sido paciente COVID);
+
+(ii) **panel de biomarcadores** para inflamación, metabolismo, función renal y micronutrientes: proteína C reactiva (PCR), ferritina, receptor soluble de transferrina (sTfR), perfil lipídico (colesterol total, HDL, LDL, triglicéridos), HbA1c, glucosa promedio estimada (EAG), insulina, creatinina, albúmina, ácido úrico, homocisteína, folato, vitaminas B12 y D;
+
+(iii) **variables ambientales**: tipo de fuente emisora y niveles de SO₂, CO, NOx, compuestos orgánicos volátiles (COV), PM₁₀, PM₂.₅ y NH₃.
+
+En conjunto, su aporte funciona como glosario/plantilla de variables para vincular exposición a contaminantes con biomarcadores y demanda de atención, habilitando comparaciones por edad, sexo, entidad, estrato y ocupación; no formula hipótesis explícitas, sino que sienta la base para construir preguntas de investigación y modelos estadísticos.
+
+De manera convergente, las tres recomendaciones coinciden en la necesidad de vincular la exposición a contaminantes atmosféricos con biomarcadores sanguíneos y analizarlos bajo un marco sociodemográfico, dando a entender que las variables que les fueron comparidas sí tenían relevancia. Tanto el Dr. Alberto como el Dr. Victor subrayan la importancia de la proteína C reactiva (PCR) y otros marcadores de inflamación en relación con contaminantes como PM2.5, NOx, COV y amoníaco, mientras que la Mtra. Judith aporta un glosario estructurado que refuerza esta misma línea al incluir biomarcadores de inflamación, metabolismo y micronutrientes junto con variables ambientales y sociales. En conjunto, los tres enfoques concluyen en priorizar la PCR como indicador central, considerar múltiples contaminantes relevantes y dar peso a los factores demográficos para sustentar modelos comparativos y preguntas de investigación sólidas.
 
 ## DAGs
+Para la creación de las DAGS utilizamos las variables en común de los 3 expertos, asimismo nos basamos completamente en sus opiniones. Aunque no utilizamos todas las variables de los expertos en sus DAGS ya que necesitamos hacer una comparación de las DAGS para saber cuál fue la mejor. Y así utilizarla para las queries que ellos mismos nos propusieron.
 
-## Evaluación de las DAGs
+Pero antes de la creación de las DAGs hicimos una pequeña limpieza para poder quedarnos con un dataframe con solo las variables. 
+Lo primero que hicimos fue seleccionar las variables de interés. Al tenerlas, eliminamos las observaciones que tuvieran algún valor faltante. Ya teniendo esto listo renombramos las columnas para tener mayor control que son las siguientes:
+E = Entidad
+M = Municipio
+ES = Estrato
+S = Sexo
+C19 = COVID 19
+NO = Nivel NOx
+CO = Nivel de COv
+SO = Nivel de S0_2
+MN = Micronutrientes
+C = Colesterol Total
+T = Triglicéridos
+F = valor de Ferritina
+FO = Valor de Fol.
+H = Valor de HCST
+CT = Valor de Creatinina
+AC = Valor de Ácido Úrico
+HB = Valor de Hemoglobina Glucosilada
 
-## Variables categoricas 
+Después lo que hicimos fue estandarizar la variable C19, si la variable es 1,2,3,4 = 1 (si ha tenido COVID) y si la variable es 98 ,99 = 0 (no ha tenido COVID). Esto para facilitar las DAGs.
+Como la mayoría de nuestras variables eran caracteres y tenían comas (,) en lugar de puntos (.). Las convertimos a numéricas y remplazamos las comas por puntos. 
+Como por el momento vamos a hacer las DAGs con solo variables continuas y no categóricas o dicotómicas eliminamos las siguientes columnas (variables). E (Entidad), M (Municipio), S (Sexo), ES(Estrato) C19 (COVID) y el MN (Micronutrientes). 
+Y así se ve nuestros dataframe final.
+
+
+```{r}
+#| echo: false
+#| output: false
+library(tidyverse)
+library(bnlearn)
+```
+```{r}
+#| echo: false
+#| output: false
+library(dplyr)
+```
+
+```{r}
+#| echo: false
+#| output: false
+data = read_csv("../data_ensanut/datos2.csv")
+head(data)
+```
+
+```{r}
+#| echo: false
+#| output: false
+colnames(data)
+```
+```{r}
+#| echo: false
+#| output: false
+vars_usar <- c("desc_ent", "desc_mun", "estrato", "h0302", "h1205", "NOx",
+               "COV", "SO_2", "nota03", "valor_COLEST", "valor_TRIG",
+               "valor_FERRITINA", "valor_FOL", "valor_HCST","valor_CREAT", "valor_AC_URICO", "valor_HB1AC")
+```
+
+```{r}
+#| echo: false
+#| output: false
+datos_buenos <- data[, vars_usar]
+```
+
+```{r}
+#| echo: false
+#| output: false
+head(datos_buenos)
+```
+
+```{r}
+#| echo: false
+#| output: false
+datos_ <- na.omit(datos_buenos)
+head(datos_)
+```
+```{r}
+#| echo: false
+#| output: false
+colSums(is.na(datos_))
+```
+```{r}
+#| echo: false
+#| output: false
+colnames(datos_) = c("E", "M", "ES", "S", "C19", "NO","CO", "SO", "MN", "C", "T", "F", "FO", "H", "CT", "AC", "HB")
+```
+
+```{r}
+#| echo: false
+#| output: false
+head(datos_)
+```
+
+```{r}
+#| echo: false
+#| output: false
+datos_ <- datos_ %>%
+  mutate(C19 = case_when(
+    C19 %in% c(1,2,3,4) ~ 1,   
+    C19 %in% c(98,99)   ~ 0, ))
+```
+
+```{r}
+#| echo: false
+#| output: false
+datos_ <- datos_ %>%
+  mutate(CT = as.numeric(str_replace(CT, ",", "\\.")))
+```
+
+```{r}
+#| echo: false
+data = datos_ |>
+        select(-E,-M, -C19, -MN, -ES, -S)
+```
+
+```{r}
+#| echo: false
+head(data)
+```
+
+Ya teniendo nuestro dataframe final creamos las 3 DAGS.
+
+```{r}
+#| echo: false
+dag1 <- model2network("[NO][CO][SO][CT|NO:CO:SO][AC|NO:CO:SO:CT][HB|NO:SO][F|NO:CO:SO:HB][T|HB:AC:F][C|HB:AC:F][FO][H|NO:CO:SO:FO]")
+```
+
+**DAG 1**:
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+graphviz.plot(dag1, shape = "ellipse")
+```
+**DAG 2**: 
+```{r}
+#| echo: false
+dag2 <- model2network("[NO][CO][SO][HB|NO:CO:SO][AC|NO:CO:SO][H|NO:CO:SO:FO][FO][F|CT][CT|NO:SO][T|HB:AC][C|HB:AC]")
+```
+
+```{r}
+#| echo: false
+
+
+graphviz.plot(dag2, shape = "ellipse")
+```
+**DAG 3**:
+```{r}
+#| echo: false
+
+dag3 <- model2network("[NO][CO][SO][H|NO:CO:SO:FO][FO][F|SO][CT|NO:CO:SO][AC|H:CT][HB|NO:SO][T|HB:AC][C|HB:AC]")
+```
+
+
+```{r}
+#| echo: false
+graphviz.plot(dag3, shape = "ellipse")
+```
+
+## Evaluación de DAGs
+
+A partir de la selección de variables continuas y siguiendo la propuesta de los expertos, se definieron tres estructuras candidatas de red bayesiana (DAG1, DAG2 y DAG3). Posteriormente, se evaluaron sus desempeños mediante criterios de información para distribuciones gaussianas: **BICg**, **AICg** y **BGe**, todos implementados en `bnlearn`.
+
+Los resultados obtenidos se resumen en la siguiente tabla:
+```{r}
+#| echo: false
+dags <- list(dag1 = dag1, dag2 = dag2, dag3 = dag3)
+
+tibble(
+  DAG = names(dags),
+  BICg = map_dbl(dags, ~ score(.x, data = data, type = "bic-g")),
+  AICg = map_dbl(dags, ~ score(.x, data = data, type = "aic-g")),
+  BGe  = map_dbl(dags, ~ score(.x, data = data, type = "bge"))
+)
+```
+
+De acuerdo con los resultados, **la DAG 3 presenta el mejor desempeño**, al obtener los valores más altos (menos negativos) tanto en BICg como en AICg, superando a las otras dos propuestas. Por ello, se selecciona la **DAG 3** como la estructura base para los análisis posteriores. El criterio **BGe** también se reporta como medida adicional de robustez, aportando una perspectiva bayesiana complementaria.
+
+Es decir, el mejor modelo relacional, dados los datos y la opinión de los expertos, sugiere que los contaminantes del aire (NO, CO y SO₂) impactan de manera directa marcadores metabólicos y renales clave: elevan homocisteína (H) y se asocian con mayor creatinina (CT); además, SO₂ también se vincula con ferritina (F) (reserva de hierro e inflamación). El folato (FO) actúa sobre homocisteína, consistente con su papel bioquímico en su metabolismo (posible efecto “protector”). A partir de ahí, H y CT determinan ácido úrico (AC), y en paralelo NO y SO₂ influyen directamente en el control glucémico crónico (HbA1c, HB). Finalmente, HB y AC son los padres de colesterol total (C) y triglicéridos (T), lo que indica que la disglucemia y el metabolismo de purinas (ácido úrico) median el camino entre la exposición a contaminantes y la dislipidemia/riesgo cardiometabólico. En conjunto, el DAG plantea una cadena plausible: contaminación → (homocisteína/función renal) → ácido úrico y HbA1c → lípidos, con folatos modulando el eje de homocisteína.
+
+
+## Variables categóricas
+
+Un punto de interes muy fuerte en la cracion de un modelo como este es el sexo de la persona. Sin embargo, las redes bayeasianas gaussinas  solo nos permiten trabajar con variables continuas que siguen una distribución normal multivariada. Por lo que, no es posible incluir variables categoricas dentro de este marco.
+
+### Discretización
+
+El primer metodo consiste enuna discretizacion de todas las variables continuas, de modo que, estas variables ahora estaran representadas en un espacio discreto. Este cambio hace que pasemos de un modelo bayesiano gaussiano a un modelo bayesiano discreto. Diversos métodos han sido propuestos para elegir los puntos de corte, entre ellos estrategias simples (intervalos de igual amplitud o frecuencia) y enfoques más avanzados que incorporan la discretización dentro del propio proceso de aprendizaje de la red, buscando un equilibrio entre la complejidad del modelo y su capacidad de representar los datos (Friedman & Goldszmidt, 1996).
+
+Este procedimiento presenta ciertas limitaciones. En primer lugar, implica una pérdida de información, ya que se reducen valores continuos a categorías. Además, una discretización inadecuada puede llevar a modelos poco generalizables o que no reflejen adecuadamente las relaciones entre variables.
+
+### Modelos mixtos/hibridos
+
+El segundo enfoque corresponde a las redes bayesianas gaussinas condicionales (CGBN), también llamadas redes híbridas. En este marco, las variables categóricas se incluyen como nodos que condicionan la distribución de las variables continuas. Esto significa que cada categoría de una variable discreta define una distribución gaussiana distinta sobre las variables continuas relacionadas. Este enfoque permite modelar de manera más fiel la interacción entre categorías y mediciones numéricas, evitando la necesidad de discretizar los datos originales (Lauritzen & Wermuth, 1989). No obstante, su implementación es más compleja
+
+### Implementación
+
+En la implementación con el paquete bnlearn en R nos encontramos con una limitacion importante. No es posible combinar variables categóricas y continuas en una misma red. Este nos exige que los datos sean homogéneos, es decir, que todas las variables sean discretas o que todas sean continuas. Esto impide la construcción de redes híbridas dentro de este entorno, incluso si se recodifican las variables categóricas. (Scutari, 2010) En el trabajo realizado se intentó incluir variables como el sexo y el estrato social en una red bayesiana gaussiana, pero el modelo rechazó estas variables al no cumplir con los supuestos previamente mencionaods.
 
 # Aplicación
+
+En esta sección usamos la DAG seleccionada para responder preguntas clínicas y químicas con probabilidades condicionadas. Para cada pregunta definimos un evento de interés (p.ej., “colesterol o triglicéridos altos”) y comparamos su probabilidad en la población general (línea base) contra su probabilidad cuando un contaminante está alto (percentil 90). Reportamos:
+	•	Prob.: \Pr(\text{evento}\mid \text{evidencia}).
+	•	Δ (p.p.): diferencia en puntos porcentuales vs. la línea base.
+	•	Lift: razón \Pr(\text{evento}\mid \text{evidencia}) / \Pr(\text{evento}). Un lift > 1 indica mayor riesgo asociado al contaminante elevado.
+
+Los umbrales (percentiles) se definieron al inicio de esta sección y las probabilidades se estimaron con muestreo por importancia (cp_dist, método “ls”) sobre el modelo ajustado. (Koller & Friedman, 2009)
+
+Aunque bnlearn ofrece cpquery() para calcular \Pr(\text{evento}\mid \text{evidencia}), en redes continuas/gaussianas su evaluación interna del evento y la evidencia puede exigir vectores lógicos estrictos y fallar según la versión o la forma de las expresiones. (Scutari, 2017) Por robustez usamos un estimador por muestreo condicional con cpdist() (logic sampling) y rechazo de muestras que no cumplen la evidencia. Implementado en el helper p_rs(), esto equivale a estimar la probabilidad condicional como el promedio de la condición del evento en las muestras que satisfacen la evidencia.(Neapolitan, 2004)
+
+Ventajas: (i) funciona de forma estable con variables continuas y umbrales, (ii) permite escribir eventos/evidencias complejos con quote(...) sin pelear con coerciones internas, y (iii) mantiene la misma interpretación probabilística que cpquery. Para controlar la variabilidad Monte Carlo usamos un número grande de simulaciones (n, típicamente 10^5–5\times10^5) y fijamos semilla (set.seed) para reproducibilidad.(Robert & Casella, 2004)
+
+
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+data_g <- as.data.frame(data)
+fit <- bn.fit(dag3, data = data_g, method = "mle-g")
+
+# Raíces
+mod_NO <- lm(NO ~ 1, data = data_g)
+mod_CO <- lm(CO ~ 1, data = data_g)
+mod_SO <- lm(SO ~ 1, data = data_g)
+mod_FO <- lm(FO ~ 1, data = data_g)
+
+# GAM (nodos con padres)
+mod_gam_H  <- gam(H  ~ s(NO) + s(CO) + s(SO) + s(FO), data = data_g, method = "REML")
+mod_gam_F  <- gam(F  ~ s(SO),                        data = data_g, method = "REML")
+mod_gam_CT <- gam(CT ~ s(NO) + s(CO) + s(SO),        data = data_g, method = "REML")
+mod_gam_AC <- gam(AC ~ s(H)  + s(CT),                data = data_g, method = "REML")
+mod_gam_HB <- gam(HB ~ s(NO) + s(SO),                data = data_g, method = "REML")
+mod_gam_T  <- gam(T  ~ s(HB) + s(AC),                data = data_g, method = "REML")
+mod_gam_C  <- gam(C  ~ s(HB) + s(AC),                data = data_g, method = "REML")
+
+# LM (referencia lineal)
+mod_lm_H  <- lm(H  ~ NO + CO + SO + FO, data = data_g)
+mod_lm_F  <- lm(F  ~ SO,                data = data_g)
+mod_lm_CT <- lm(CT ~ NO + CO + SO,      data = data_g)
+mod_lm_AC <- lm(AC ~ H  + CT,           data = data_g)
+mod_lm_HB <- lm(HB ~ NO + SO,           data = data_g)
+mod_lm_T  <- lm(T  ~ HB + AC,           data = data_g)
+mod_lm_C  <- lm(C  ~ HB + AC,           data = data_g)
+
+aic_comp <- data.frame(
+  nodo   = c("H","F","CT","AC","HB","T","C"),
+  AIC_GAM= c(AIC(mod_gam_H), AIC(mod_gam_F), AIC(mod_gam_CT),
+             AIC(mod_gam_AC), AIC(mod_gam_HB), AIC(mod_gam_T), AIC(mod_gam_C)),
+  AIC_LM = c(AIC(mod_lm_H),  AIC(mod_lm_F),  AIC(mod_lm_CT),
+             AIC(mod_lm_AC), AIC(mod_lm_HB),  AIC(mod_lm_T),  AIC(mod_lm_C))
+)
+aic_comp$mejor <- ifelse(aic_comp$AIC_GAM < "AIC_LM", "GAM", "LM")
+
+set.seed(42) 
+
+thrNO <- as.numeric(quantile(data$NO, .90))
+thrCO <- as.numeric(quantile(data$CO, .90))
+thrSO <- as.numeric(quantile(data$SO, .90))
+thrC  <- as.numeric(quantile(data$C,  .75))
+thrT  <- as.numeric(quantile(data$T,  .75))
+thrHB <- as.numeric(quantile(data$HB, .75))
+thrCT <- as.numeric(quantile(data$CT, .75))
+thrF  <- as.numeric(quantile(data$F,  .75))
+thrH  <- as.numeric(quantile(data$H,  .75))
+
+# Probabilidad P( evento | evidencia ) por muestreo y filtrado
+p_rs <- function(event_expr, evidence_expr, n = 2e5) {
+  samp <- as.data.frame(rbn(fit, n = n))
+  ok   <- eval(evidence_expr, envir = samp)
+  if (!any(ok)) return(NA_real_)
+  mean(eval(event_expr, envir = samp[ok, , drop = FALSE]))
+}
+
+p_dislip_NO <- p_rs( quote((C > thrC) | (T > thrT)), quote(NO > thrNO) )
+p_dislip_CO <- p_rs( quote((C > thrC) | (T > thrT)), quote(CO > thrCO) )
+p_dislip_SO <- p_rs( quote((C > thrC) | (T > thrT)), quote(SO > thrSO) )
+base_dislip <- p_rs( quote((C > thrC) | (T > thrT)), quote(TRUE) )
+
+p_dm_NO <- p_rs( quote(HB > thrHB), quote(NO > thrNO) )
+p_dm_CO <- p_rs( quote(HB > thrHB), quote(CO > thrCO) )
+p_dm_SO <- p_rs( quote(HB > thrHB), quote(SO > thrSO) )
+base_dm <- p_rs( quote(HB > thrHB), quote(TRUE) )
+
+
+p_ckd_NO <- p_rs( quote(CT > thrCT), quote(NO > thrNO) )
+p_ckd_CO <- p_rs( quote(CT > thrCT), quote(CO > thrCO) )
+p_ckd_SO <- p_rs( quote(CT > thrCT), quote(SO > thrSO) )
+base_ckd <- p_rs( quote(CT > thrCT), quote(TRUE) )
+
+
+# Componente nutricional
+p_ferr_NO <- p_rs( quote(F  > thrF),                           quote(NO > thrNO) )
+p_ferr_SO <- p_rs( quote(F  > thrF),                           quote(SO > thrSO) )
+p_fol_NO  <- p_rs( quote(FO < median(data_g$FO, na.rm = TRUE)), quote(NO > thrNO) )
+p_fol_SO  <- p_rs( quote(FO < median(data_g$FO, na.rm = TRUE)), quote(SO > thrSO) )
+
+# Proxy de riesgo metabólico compuesto: H, F, C, T, HB (y puedes incluir CT si quieres)
+p_cv_NO <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
+                 quote( NO > thrNO ) )
+p_cv_CO <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
+                 quote( CO > thrCO ) )
+p_cv_SO <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
+                 quote( SO > thrSO ) )
+base_cv <- p_rs( quote( (H > thrH) | (F > thrF) | (C > thrC) | (T > thrT) | (HB > thrHB) ),
+                 quote(TRUE) )
+
+# ---- 2) Helpers para formateo y construcción de tablas de resultados ----
+
+
+fmt_pct <- percent_format(accuracy = 0.1)
+
+summarize_query <- function(p_no, p_co, p_so, p_base, query_label){
+  tibble(
+    Contaminante = c("NO alto (p90)", "CO alto (p90)", "SO₂ alto (p90)", "Base (sin evidencia)"),
+    Prob         = c(p_no, p_co, p_so, p_base),
+    Base         = p_base
+  ) |>
+    mutate(
+      Delta_pp = (Prob - Base) * 100,     # diferencia en puntos porcentuales
+      Lift     = Prob / Base
+    ) |>
+    mutate(
+      Prob  = fmt_pct(Prob),
+      Base  = fmt_pct(Base),
+      `Δ (p.p.)` = sprintf("%.1f", Delta_pp),
+      Lift  = sprintf("%.2f", Lift)
+    ) |>
+    select(Contaminante, Prob, Base, `Δ (p.p.)`, Lift) |>
+    mutate(Query = query_label, .before = 1)
+}
+```
+
+### Query 1: Dislipidemia (colesterol o triglicéridos altos)
+
+¿Cuando aumentan los niveles de contaminantes (NO, CO, SO), se incrementa la probabilidad de observar colesterol o triglicéridos elevados?
+
+En esta consulta se estima la probabilidad de presentar colesterol total o triglicéridos elevados cuando los niveles de contaminantes (NO, CO, SO₂) están altos, comparándola con la probabilidad base sin evidencia.
+
+```{r}
+#| echo: false
+### Q1: Dislipidemia (C o T altos)
+tab_q1 <- summarize_query(p_dislip_NO, p_dislip_CO, p_dislip_SO, base_dislip,
+                          "Q1: Dislipidemia (C o T altos)")
+
+tab_q1
+
+```
+
+
+### Query 2: HbA1c alta (diabetes / resistencia a la insulina)
+
+¿Cuando aumentan los niveles de contaminantes (NO, CO, SO), se incrementa la probabilidad de observar HbA1c elevada?
+
+En esta consulta se evalúa la probabilidad de que la hemoglobina glucosilada (HbA1c) esté por encima del umbral (indicador de diabetes o resistencia a la insulina) cuando los contaminantes NO, CO o SO₂ son altos, comparado con la probabilidad base.
+
+```{r}
+#| echo: false
+# Q2: HbA1c alta (diabetes/resistencia)
+tab_q2 <- summarize_query(p_dm_NO, p_dm_CO, p_dm_SO, base_dm,
+                          "Q2: HbA1c alta (diabetes/resistencia)")
+
+tab_q2
+```
+
+### Query 3: Creatinina alta (función renal)
+
+¿Cuando aumentan los niveles de contaminantes (NO, CO, SO), se incrementa la probabilidad de observar creatinina elevada?
+
+Aquí se estima la probabilidad de que la creatinina se encuentre elevada (marcador de alteración en la función renal) cuando los contaminantes están altos, en comparación con la probabilidad base.
+
+```{r}
+#| echo: false
+# Q3: Creatinina alta (función renal)
+tab_q3 <- summarize_query(p_ckd_NO, p_ckd_CO, p_ckd_SO, base_ckd,
+                          "Q3: Creatinina alta (función renal)")
+
+tab_q3
+
+```
+
+
+### Query 4: Riesgo metabólico compuesto
+
+
+¿Niveles altos de contaminantes (NO, CO, SO) se asocian con ferritina o folatos anormales y mayor riesgo cardiovascular (C, T, HB, CT, H)?
+
+En este caso se agrupan varios marcadores (colesterol, triglicéridos, HbA1c, homocisteína y ferritina) para evaluar un riesgo metabólico compuesto. Se compara la probabilidad de alteraciones cuando los contaminantes están altos contra la base.
+
+```{r}
+#| echo: false
+# Q4: Riesgo metabólico compuesto
+tab_q4_cv <- summarize_query(p_cv_NO, p_cv_CO, p_cv_SO, base_cv,
+                          "Q4: Riesgo metabólico compuesto")
+
+tab_q4_cv
+```
+
+
+### Query 4 (opcional): Componente nutricional
+
+También se explora la relación entre contaminantes y biomarcadores nutricionales: ferritina (almacenamiento de hierro) y folatos (asociados a metabolismo de homocisteína).
+
+```{r}
+#| echo: false
+# (Opcional) Q4 componente nutricional (ferritina/folatos)
+tab_q4_nutr <- tibble(
+  Indicador     = c("Ferritina alta | NO alto", "Ferritina alta | SO₂ alto",
+                    "Folatos bajos | NO alto",  "Folatos bajos | SO₂ alto"),
+  Probabilidad  = fmt_pct(c(p_ferr_NO, p_ferr_SO, p_fol_NO, p_fol_SO))
+)
+
+tab_q4_nutr
+
+```
+
+
+### Resumen combinado de queries
+
+Finalmente, se integran los resultados de todas las consultas en una tabla resumen para facilitar su interpretación.
+
+```{r}
+#| echo: false
+# ---- Resumen combinado ----
+tab_resumen <- bind_rows(tab_q1, tab_q2, tab_q3, tab_q4_cv)
+tab_resumen
+```
 
 # Conclusiones
 
 # Referencias
 
+Koller, D., & Friedman, N. (2009). Probabilistic Graphical Models: Principles and Techniques. MIT Press.
 
+Pearl, J. (2009). Causality: Models, Reasoning and Inference (2nd ed.). Cambridge University Press.
+
+Secretaría de Salud. (2022). Informe sobre la calidad del aire y salud en México. Gobierno de México.
+
+World Health Organization. (2021). Air pollution. https://www.who.int/health-topics/air-pollution
+
+Friedman, N., & Goldszmidt, M. (1996). Discretizing Continuous Attributes While Learning Bayesian Networks. Proceedings of the Thirteenth International Conference on Machine Learning. Recuperado de  https://www.cs.huji.ac.il/w~nir/Papers/FrG2.pdf
+
+Lauritzen, S. L., & Wermuth, N. (1989). Graphical models for associations between variables, some of which are qualitative and some quantitative. The Annals of Statistics.
+
+Neapolitan, R. E. (2004). Learning Bayesian Networks. Pearson Prentice Hall.
+
+Robert, C. P., & Casella, G. (2004). Monte Carlo Statistical Methods (2nd ed.). Springer.
+
+Scutari, M. (2010). Learning Bayesian Networks with the bnlearn R Package. Journal of Statistical Software, 35(3), 1–22. https://doi.org/10.18637/jss.v035.i03
+
+Scutari, M. (2017). Bayesian Network Models of Discrete and Continuous Data. British Journal of Mathematical and Statistical Psychology, 70(2), 272–291. https://doi.org/10.1111/bmsp.12073
