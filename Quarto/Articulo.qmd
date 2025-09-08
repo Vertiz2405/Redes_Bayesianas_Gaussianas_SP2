@@ -33,7 +33,7 @@ library(mgcv)
 ```
 
 # Abstract
-
+Este estudio tuvo como objetivo implementar un modelo probabilístico que permitiera comprender cómo los factores ambientales influyen en la salud de la población mexicana, con el fin de aportar recomendaciones para políticas públicas y estrategias de prevención. Para ello, se utilizaron datos de calidad del aire y biomarcadores clínicos provenientes de ENSANUT, se aplicó un proceso de limpieza y estandarización, y se construyeron redes bayesianas gaussianas evaluadas mediante criterios de información (BICg, AICg, BGe). Los resultados mostraron que la DAG 3 fue la estructura con mejor desempeño, indicando que los contaminantes atmosféricos (NO, CO y SO₂) influyen en biomarcadores clave como homocisteína, creatinina y hemoglobina glucosilada, los cuales a su vez medían efectos en lípidos y riesgo metabólico. Las consultas probabilísticas evidenciaron asociaciones comprobadas, destacando la relación del CO con alteraciones renales y metabólicas. En conclusión, el modelo confirma la utilidad de las redes bayesianas gaussianas para explorar dependencias complejas entre contaminación y salud, aunque futuras investigaciones deben ampliar el espectro de contaminantes, considerar variables categóricas y validar los hallazgos con estudios pertinentes.
 # Introducción
 
 La calidad del aire en México constituye uno de los principales retos de salud pública, ya que la exposición crónica a contaminantes como dióxido de azufre (SO₂), óxidos de nitrógeno (NOx) y monóxido de carbono (CO) se ha vinculado con un aumento en enfermedades cardiovasculares, respiratorias y metabólicas (Secretaría de Salud, 2022; World Health Organization \[WHO\], 2021). Estos contaminantes pueden alterar biomarcadores clave, como la hemoglobina glucosilada, los lípidos en sangre o la función renal, lo que los convierte en variables fundamentales para estudiar la relación entre ambiente y salud.
@@ -666,7 +666,11 @@ tab_resumen
 ```
 
 # Conclusiones
+El análisis desarrollado mostró que los contaminantes atmosféricos (NO, CO y SO₂) sí presentan vínculos con diversos biomarcadores clínicos relevantes para la salud de la población mexicana. En particular, los resultados de las queries indican que: i) el impacto sobre lípidos (colesterol y triglicéridos) es marginal, con cambios mínimos en la probabilidad de dislipidemia; ii) la exposición a SO₂ se asocia a un incremento ligero en la probabilidad de HbA1c elevada, mientras que NO incluso se relaciona con una reducción de este riesgo en la muestra; iii) en el caso de la función renal, el CO mostró la mayor asociación con niveles altos de creatinina; y iv) en un riesgo metabólico compuesto, el CO nuevamente resaltó como el contaminante con mayor incremento de probabilidad, aunque en general los cambios fueron pequeños
 
+Estos hallazgos son relevantes porque confirman, con un modelo probabilístico robusto, la utilidad de las redes bayesianas gaussianas para explorar dependencias complejas entre variables ambientales y biomarcadores de salud, ofreciendo un marco flexible para generar insumos que orienten políticas públicas y estrategias de prevención. No obstante, también se identifican limitaciones: el análisis se restringió a un conjunto reducido de contaminantes y biomarcadores, los datos ambientales fueron estimados con supuestos temporales y no se incorporaron variables categóricas sociodemográficas que podrían matizar las asociaciones.
+
+Para investigaciones futuras, se sugiere ampliar la muestra a más regiones y contaminantes (incluyendo PM₂.₅, ozono y compuestos orgánicos volátiles), probar modelos híbridos que integren variables continuas y categóricas, así como validar los resultados en estudios longitudinales que permitan confirmar direccionalidad causal. De esta manera, se podrán afinar los modelos y fortalecer la evidencia disponible para el diseño de estrategias de prevención en salud ambiental en México.
 # Referencias
 
 Koller, D., & Friedman, N. (2009). Probabilistic Graphical Models: Principles and Techniques. MIT Press.
