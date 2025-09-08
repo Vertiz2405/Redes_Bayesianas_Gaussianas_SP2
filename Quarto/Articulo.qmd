@@ -1,5 +1,5 @@
 ---
-title: "Articulo"
+title: "Redes bayesianas gaussianas para la relación de contaminantes y biomarcadores de salud en México"
 author: 
   - name: "Jose Angel Govea Garcia"
   - name: "Diego Vértiz Padilla"
